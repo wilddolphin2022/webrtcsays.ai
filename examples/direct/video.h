@@ -22,14 +22,15 @@
 #include "rtc_base/synchronization/mutex.h"
 #include "rtc_base/task_queue_for_test.h"
 #include "rtc_base/task_utils/repeating_task.h"
+#include "rtc_base/time_utils.h"
 #include "pc/video_track_source.h"
 
 #include "api/video/i420_buffer.h"
-#ifdef WEBRTC_SPEECH_DEVICES
+
+#if defined(WEBRTC_SPEECH_DEVICES) 
 #include "modules/third_party/whillats/src/whillats.h"
 #include "modules/audio_device/speech/speech_audio_device_factory.h"
 #endif
-#include "rtc_base/time_utils.h"
 
 namespace webrtc {
 // StaticPeriodic video source no longer used; class definitions removed to reduce footprint.
@@ -63,7 +64,7 @@ class EchoVideoTrackSource : public webrtc::VideoTrackSource,
   rtc::VideoBroadcaster broadcaster_;
 };
 
-#ifdef WEBRTC_SPEECH_DEVICES
+#if defined(WEBRTC_SPEECH_DEVICES) 
 // Simple video sink that logs frame information to the console
 class LlamaVideoRenderer : public rtc::VideoSinkInterface<webrtc::VideoFrame> {
   // Function to check if a WebRTC VideoFrame (I420 format) is black
@@ -142,7 +143,7 @@ class LlamaVideoRenderer : public rtc::VideoSinkInterface<webrtc::VideoFrame> {
   bool is_llama_ = false;
   bool received_frame_ = false;
 };
-#endif // WEBRTC_SPEECH_DEVICES
+#endif //WEBRTC_SPEECH_DEVICES
 
 }  // namespace webrtc
 
