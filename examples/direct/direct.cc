@@ -57,7 +57,6 @@ rtc::IPAddress IPFromString(absl::string_view str) {
 }
 
 #if defined(WEBRTC_SPEECH_DEVICES) && defined(LLAMA_NOTIFICATION_ENABLED)
-#if defined(WEBRTC_SPEECH_DEVICES) && defined(LLAMA_NOTIFICATION_ENABLED)
 WhillatsLlama* DirectApplication::llama_ = nullptr;
 
 void llamaCallback(bool success, const char* response, void* user_data) {
@@ -90,7 +89,6 @@ void llamaCallback(bool success, const char* response, void* user_data) {
 // DirectApplication Implementation
 DirectApplication::DirectApplication(Options opts)
   : opts_(opts)
-#if defined(WEBRTC_SPEECH_DEVICES) && defined(LLAMA_NOTIFICATION_ENABLED)
 #if defined(WEBRTC_SPEECH_DEVICES) && defined(LLAMA_NOTIFICATION_ENABLED)
     , llamaCallback_(llamaCallback, this)
 #endif //WEBRTC_SPEECH_DEVICES && LLAMA_NOTIFICATION_ENABLED
@@ -1024,7 +1022,6 @@ void DirectApplication::OnAddTrack(rtc::scoped_refptr<webrtc::RtpReceiverInterfa
         
 #if defined(WEBRTC_SPEECH_DEVICES) && defined(LLAMA_NOTIFICATION_ENABLED)
         // Always create video sink for remote video tracks to prevent freezing
-#if defined(WEBRTC_SPEECH_DEVICES) && defined(LLAMA_NOTIFICATION_ENABLED)
         if(!video_sink_) {
           RTC_LOG(LS_INFO) << "Initializing video sink for remote video track...";
           video_sink_ = std::make_unique<webrtc::LlamaVideoRenderer>();
