@@ -80,7 +80,118 @@ else
     echo "Sysroot install script not found or not required for this architecture. Skipping sysroot installation."
 fi
 
-python3 tools/clang/scripts/update.py
+# For ARM64, use system Clang and ensure required packages are installed
+if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
+    echo "Detected ARM64 platform. Using system Clang and ensuring required packages are installed..."
+    apt-get update
+    apt-get install -y clang lld || {
+        echo "ERROR: Failed to install clang/lld. Please check your APT sources and keys.";
+        exit 1;
+    }
+    CLANG_PATH=$(which clang || true)
+    if [ -z "$CLANG_PATH" ]; then
+        echo "ERROR: clang not found after installation. Please install clang manually."
+        exit 1
+    fi
+    echo "System Clang found at $CLANG_PATH"
+    # Set GN args to use system Clang and specify clang_version 14
+    EXTRA_ARGS="clang_base_path=\"/usr\" clang_use_chrome_plugins=false target_cpu=\"arm64\" use_custom_libcxx=false clang_version=\"14\""
+    echo "Skipping prebuilt Clang download for ARM64."
+    # Build and install libclang_rt.builtins.a if missing
+    BUILTINS_PATH="/usr/lib/clang/14/lib/aarch64-unknown-linux-gnu/libclang_rt.builtins.a"
+    if [ ! -f "$BUILTINS_PATH" ]; then
+        echo "libclang_rt.builtins.a not found, building from source..."
+        TMP_LLVM_DIR="/tmp/llvm-project"
+        if [ ! -d "$TMP_LLVM_DIR" ]; then
+            git clone --depth=1 https://github.com/llvm/llvm-project.git "$TMP_LLVM_DIR"
+        fi
+        cd "$TMP_LLVM_DIR"
+        rm -rf build-builtin
+        mkdir build-builtin
+        cd build-builtin
+        cmake -G Ninja \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DLLVM_ENABLE_PROJECTS="compiler-rt" \
+          -DLLVM_TARGETS_TO_BUILD="AArch64" \
+          -DCOMPILER_RT_BUILD_BUILTINS=ON \
+          -DCOMPILER_RT_DEFAULT_TARGET_ONLY=ON \
+          -DCMAKE_C_COMPILER_TARGET=aarch64-linux-gnu \
+          -DLLVM_INCLUDE_TESTS=OFF \
+          -DCMAKE_INSTALL_PREFIX=/usr \
+          ../llvm
+        ninja
+        FOUND_BUILTIN=$(find . -name 'libclang_rt.builtins.a' | head -n1)
+        if [ -f "$FOUND_BUILTIN" ]; then
+            sudo mkdir -p /usr/lib/clang/14/lib/aarch64-unknown-linux-gnu/
+            sudo cp "$FOUND_BUILTIN" /usr/lib/clang/14/lib/aarch64-unknown-linux-gnu/
+            echo "libclang_rt.builtins.a installed to /usr/lib/clang/14/lib/aarch64-unknown-linux-gnu/"
+        else
+            echo "ERROR: libclang_rt.builtins.a was not built successfully."
+            exit 1
+        fi
+        cd -
+    fi
+    # Skip update.py
+else
+    python3 tools/clang/scripts/update.py
+fi
+
+# Parse script parameters
+BUILD_TYPE="debug"
+ENABLE_SPEECH="false"
+if [ $# -ge 1 ]; then
+    if [[ "$1" == "debug" || "$1" == "release" ]]; then
+        BUILD_TYPE="$1"
+    else
+        echo "Unknown build type: $1. Use 'debug' or 'release'."
+        exit 1
+    fi
+fi
+if [ $# -ge 2 ]; then
+    if [[ "$2" == "speech" || "$2" == "enable_speech" ]]; then
+        ENABLE_SPEECH="true"
+    fi
+fi
+
+# If speech is enabled, update submodules and build Whisper library
+if [ "$ENABLE_SPEECH" = "true" ]; then
+    echo "Speech option enabled: updating submodules and building Whisper library..."
+    git submodule update --init --recursive
+    if [ -d "src/modules/third_party/whillats" ]; then
+        pushd src/modules/third_party/whillats
+        if [ "$BUILD_TYPE" = "debug" ]; then
+            make debug
+        else
+            make release
+        fi
+        popd
+    else
+        echo "ERROR: src/modules/third_party/whillats directory not found."
+        exit 1
+    fi
+fi
+
+# Dynamically detect src directory
+if [ -d "src" ]; then
+    SRC_DIR="src"
+else
+    SRC_DIR="."
+fi
+
+# Set binary path and build dir based on build type and SRC_DIR
+if [ "$BUILD_TYPE" = "debug" ]; then
+    BINARY_PATH="$SRC_DIR/out/debug/direct_app"
+    BUILD_DIR="$SRC_DIR/out/debug"
+else
+    BINARY_PATH="$SRC_DIR/out/release/direct_app"
+    BUILD_DIR="$SRC_DIR/out/release"
+fi
+
+# Clean build output directory for ARM64 to avoid stale references to Clang 20
+if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
+    echo "Cleaning build output directory: $BUILD_DIR"
+    rm -rf "$BUILD_DIR"
+fi
 
 # Check if binary already exists and if code has updates
 BINARY_PATH="out/debug/direct_app"
@@ -128,13 +239,13 @@ fi
 
 if [ "$BUILD_TYPE" = "debug" ]; then
     echo "Building WebRTC project (debug, speech: $ENABLE_SPEECH)..."
-    gn gen out/debug --args="is_debug=true rtc_include_opus=true rtc_enable_symbol_export=true rtc_build_examples=true rtc_use_speech_audio_devices=$ENABLE_SPEECH"
-    ninja -C out/debug direct_app
+    (cd $SRC_DIR && gn gen out/debug --args="is_debug=true rtc_include_opus=true rtc_enable_symbol_export=true rtc_build_examples=true rtc_use_speech_audio_devices=$ENABLE_SPEECH $EXTRA_ARGS")
+    (cd $SRC_DIR && ninja -C out/$BUILD_TYPE direct_app)
     echo "Debug build completed."
 else
     echo "Building WebRTC project (release, speech: $ENABLE_SPEECH)..."
-    gn gen out/debug --args="is_debug=false rtc_include_opus=true rtc_enable_symbol_export=true rtc_build_examples=true rtc_use_speech_audio_devices=$ENABLE_SPEECH"
-    ninja -C out/debug direct_app
+    (cd $SRC_DIR && gn gen out/release --args="is_debug=false rtc_include_opus=true rtc_enable_symbol_export=true rtc_build_examples=true rtc_use_speech_audio_devices=$ENABLE_SPEECH $EXTRA_ARGS")
+    (cd $SRC_DIR && ninja -C out/$BUILD_TYPE direct_app)
     echo "Release build completed."
 fi
 
