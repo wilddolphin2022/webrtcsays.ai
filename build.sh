@@ -159,24 +159,23 @@ build_whillats() {
         echo "Initializing parent submodule: modules/third_party/whillats"
         git -C "$REPO_ROOT" submodule update --init modules/third_party/whillats
     fi
-    NESTED_GITMODULES="$WHILLATS_DIR/.gitmodules"
-    echo "[build-whillats] Checking nested .gitmodules at: $NESTED_GITMODULES"
-    if [ ! -f "$NESTED_GITMODULES" ]; then
-        echo "[build-whillats] Creating .gitmodules in $WHILLATS_DIR"
-        touch "$NESTED_GITMODULES"
-    fi
-    echo "[build-whillats] Current nested .gitmodules contents:"
-    cat "$NESTED_GITMODULES" || echo "(empty)"
-    echo "[build-whillats] Updating submodules..."
-    pushd "$WHILLATS_DIR"
-    git submodule sync
-    git submodule update --init --recursive
-    popd
+
     if [ ! -d "$WHILLATS_DIR" ]; then
         echo "ERROR: $WHILLATS_DIR directory not found."
         exit 1
     fi
+
     pushd "$WHILLATS_DIR"
+
+    # Clone required third_party repositories if not present
+    mkdir -p third_party
+    if [ ! -d "third_party/whisper.cpp" ]; then
+      git clone https://github.com/ggerganov/whisper.cpp third_party/whisper.cpp
+    fi
+    if [ ! -d "third_party/llama.cpp" ]; then
+      git clone https://github.com/ggerganov/llama.cpp third_party/llama.cpp
+    fi
+
     # Patch: Check for GCC 11 and set build configuration
     CMAKE_CUDA_DISABLED=""
     CMAKE_CUDA_COMPILER_ARG=""
