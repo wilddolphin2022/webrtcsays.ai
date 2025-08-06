@@ -3,6 +3,9 @@
 # Exit on any error
 set -e
 
+# Always set repo root ONCE at the top
+REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
+
 # Clean up old directories if they exist, but keep src
 echo "Cleaning up old directories..."
 if [ -f ".gclient" ]; then
@@ -136,9 +139,102 @@ else
     python3 tools/clang/scripts/update.py
 fi
 
+build_whillats() {
+    BUILD_TYPE="$1"
+    echo "[build-whillats] Build type: $BUILD_TYPE"
+    echo "[build-whillats] REPO_ROOT: $REPO_ROOT"
+    WHILLATS_DIR="$REPO_ROOT/src/modules/third_party/whillats"
+    echo "[build-whillats] WHILLATS_DIR: $WHILLATS_DIR"
+    WHILLATS_THIRD_PARTY_DIR="$WHILLATS_DIR/third_party"
+    echo "[build-whillats] WHILLATS_THIRD_PARTY_DIR: $WHILLATS_THIRD_PARTY_DIR"
+    if ! grep -q 'modules/third_party/whillats' "$REPO_ROOT/.gitmodules"; then
+        echo "ERROR: Submodule 'modules/third_party/whillats' is missing from .gitmodules."
+        exit 1
+    fi
+    echo "[build-whillats] Current root .gitmodules contents:"
+    cat "$REPO_ROOT/.gitmodules"
+    # Only update/init submodule if whillats dir does not exist or is empty
+    if [ ! -d "$WHILLATS_DIR" ] || [ -z "$(ls -A "$WHILLATS_DIR" 2>/dev/null)" ]; then
+        echo "Initializing parent submodule: modules/third_party/whillats"
+        git -C "$REPO_ROOT" submodule update --init modules/third_party/whillats
+    fi
+    NESTED_GITMODULES="$WHILLATS_DIR/.gitmodules"
+    echo "[build-whillats] Checking nested .gitmodules at: $NESTED_GITMODULES"
+    if [ ! -f "$NESTED_GITMODULES" ]; then
+        echo "[build-whillats] Creating .gitmodules in $WHILLATS_DIR"
+        touch "$NESTED_GITMODULES"
+    fi
+    echo "[build-whillats] Current nested .gitmodules contents:"
+    cat "$NESTED_GITMODULES" || echo "(empty)"
+    echo "[build-whillats] Updating submodules..."
+    pushd "$WHILLATS_DIR"
+    git submodule sync
+    git submodule update --init --recursive
+    popd
+    if [ ! -d "$WHILLATS_DIR" ]; then
+        echo "ERROR: $WHILLATS_DIR directory not found."
+        exit 1
+    fi
+    pushd "$WHILLATS_DIR"
+    # Patch: Check for GCC 11 and set build configuration
+    CMAKE_CUDA_DISABLED=""
+    CMAKE_CUDA_COMPILER_ARG=""
+    CMAKE_CUDA_HOST_COMPILER_ARG=""
+    CMAKE_CUDA_STANDARD=""
+    CMAKE_CXX_STANDARD=""
+    CMAKE_CUDA_ARCH=""
+    CMAKE_CUDA_FLAGS=""
+    GGML_CUDA_ON=""
+    if grep -q 'GGML_CUDA' CMakeLists.txt || grep -r 'CUDA' .; then
+        GGML_CUDA_ON="1"
+        if ! command -v gcc-11 >/dev/null 2>&1 || ! command -v g++-11 >/dev/null 2>&1; then
+            echo "[build-whillats] gcc-11/g++-11 not found. Attempting to install..."
+            if [ "$EUID" -ne 0 ]; then
+                if command -v sudo >/dev/null 2>&1; then
+                    sudo apt-get update && sudo apt-get install -y gcc-11 g++-11
+                else
+                    echo "[build-whillats] ERROR: sudo not found. Please install gcc-11 and g++-11 manually."
+                    exit 1
+                fi
+            else
+                apt-get update && apt-get install -y gcc-11 g++-11
+            fi
+        fi
+        if command -v nvcc >/dev/null 2>&1; then
+            echo "[build-whillats] NVCC found, but using CPU-only mode due to CUDA 12.8 + glibc 2.41 compatibility"
+            echo "[build-whillats] Your RTX 3050 is ready for CUDA when compatibility is resolved"
+            echo "[build-whillats] Building with optimized CPU-only mode for now"
+            CMAKE_CUDA_DISABLED="-DGGML_CUDA=OFF -DWHISPER_CUDA=OFF -DGGML_CUBLAS=OFF -DLLAMA_CUDA=OFF"
+            # Patch: Run cmake for whisper.cpp and llama.cpp with CPU-only
+            if [ -d third_party/whisper.cpp ]; then
+                pushd third_party/whisper.cpp
+                cmake . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo $CMAKE_CUDA_DISABLED
+                popd
+            fi
+            if [ -d third_party/llama.cpp ]; then
+                pushd third_party/llama.cpp
+                cmake . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo $CMAKE_CUDA_DISABLED
+                popd
+            fi
+        else
+            echo "[build-whillats] NVCC not found. Building in CPU-only mode."
+            CMAKE_CUDA_DISABLED="-DGGML_CUDA=OFF -DWHISPER_CUDA=OFF -DGGML_CUBLAS=OFF -DLLAMA_CUDA=OFF"
+        fi
+    fi
+    if [ "$BUILD_TYPE" = "debug" ]; then
+        cmake -B build -DCMAKE_BUILD_TYPE=Debug -DGGML_METAL=OFF $CMAKE_CUDA_DISABLED
+        make debug
+    else
+        cmake -B build -DCMAKE_BUILD_TYPE=Release -DGGML_METAL=OFF $CMAKE_CUDA_DISABLED
+        make release
+    fi
+    popd
+    echo "[build-whillats] Whisper/Llama/TTS build completed."
+}
+
 # Parse script parameters
 BUILD_TYPE="debug"
-ENABLE_SPEECH="false"
+ENABLE_WHILLATS="false"
 if [ $# -ge 1 ]; then
     if [[ "$1" == "debug" || "$1" == "release" ]]; then
         BUILD_TYPE="$1"
@@ -148,26 +244,10 @@ if [ $# -ge 1 ]; then
     fi
 fi
 if [ $# -ge 2 ]; then
-    if [[ "$2" == "speech" || "$2" == "enable_speech" ]]; then
-        ENABLE_SPEECH="true"
-    fi
-fi
-
-# If speech is enabled, update submodules and build Whisper library
-if [ "$ENABLE_SPEECH" = "true" ]; then
-    echo "Speech option enabled: updating submodules and building Whisper library..."
-    git submodule update --init --recursive
-    if [ -d "src/modules/third_party/whillats" ]; then
-        pushd src/modules/third_party/whillats
-        if [ "$BUILD_TYPE" = "debug" ]; then
-            make debug
-        else
-            make release
-        fi
-        popd
-    else
-        echo "ERROR: src/modules/third_party/whillats directory not found."
-        exit 1
+    if [[ "$2" == "whillats" || "$2" == "enable_whillats" ]]; then
+        ENABLE_WHILLATS="true"
+        echo "Whillats option enabled: running build_whillats..."
+        build_whillats "$BUILD_TYPE"
     fi
 fi
 
@@ -194,7 +274,6 @@ if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
 fi
 
 # Check if binary already exists and if code has updates
-BINARY_PATH="out/debug/direct_app"
 LAST_BUILD_COMMIT=""
 if [ -f "../$LAST_BUILD_COMMIT_FILE" ]; then
     LAST_BUILD_COMMIT=$(cat ../$LAST_BUILD_COMMIT_FILE)
@@ -222,7 +301,7 @@ fi
 
 # Parse script parameters
 BUILD_TYPE="debug"
-ENABLE_SPEECH="false"
+ENABLE_WHILLATS="false"
 if [ $# -ge 1 ]; then
     if [[ "$1" == "debug" || "$1" == "release" ]]; then
         BUILD_TYPE="$1"
@@ -232,19 +311,21 @@ if [ $# -ge 1 ]; then
     fi
 fi
 if [ $# -ge 2 ]; then
-    if [[ "$2" == "speech" || "$2" == "enable_speech" ]]; then
-        ENABLE_SPEECH="true"
+    if [[ "$2" == "whillats" || "$2" == "enable_whillats" ]]; then
+        ENABLE_WHILLATS="true"
+        echo "Whillats option enabled: running build_whillats..."
+        build_whillats "$BUILD_TYPE"
     fi
 fi
 
 if [ "$BUILD_TYPE" = "debug" ]; then
-    echo "Building WebRTC project (debug, speech: $ENABLE_SPEECH)..."
-    (cd $SRC_DIR && gn gen out/debug --args="is_debug=true rtc_include_opus=true rtc_enable_symbol_export=true rtc_build_examples=true rtc_use_speech_audio_devices=$ENABLE_SPEECH $EXTRA_ARGS")
+    echo "Building WebRTC project (debug, whillats: $ENABLE_WHILLATS)..."
+    (cd $SRC_DIR && gn gen out/debug --args="is_debug=true rtc_include_opus=true rtc_enable_symbol_export=true rtc_build_examples=true rtc_use_speech_audio_devices=$ENABLE_WHILLATS $EXTRA_ARGS")
     (cd $SRC_DIR && ninja -C out/$BUILD_TYPE direct_app)
     echo "Debug build completed."
 else
-    echo "Building WebRTC project (release, speech: $ENABLE_SPEECH)..."
-    (cd $SRC_DIR && gn gen out/release --args="is_debug=false rtc_include_opus=true rtc_enable_symbol_export=true rtc_build_examples=true rtc_use_speech_audio_devices=$ENABLE_SPEECH $EXTRA_ARGS")
+    echo "Building WebRTC project (release, whillats: $ENABLE_WHILLATS)..."
+    (cd $SRC_DIR && gn gen out/release --args="is_debug=false rtc_include_opus=true rtc_enable_symbol_export=true rtc_build_examples=true rtc_use_speech_audio_devices=$ENABLE_WHILLATS $EXTRA_ARGS")
     (cd $SRC_DIR && ninja -C out/$BUILD_TYPE direct_app)
     echo "Release build completed."
 fi

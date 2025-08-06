@@ -9,8 +9,8 @@ git checkout develop
 # Build (choose one of the following):
 ./build.sh release
 ./build.sh debug
-./build.sh release speech
-./build.sh debug speech
+./build.sh release whillats
+./build.sh debug whillats
 ```
 
 ## Overview
@@ -24,6 +24,7 @@ WebRTCsays.ai is a project that brings AI-powered speech capabilities to WebRTC.
 - **depot_tools** ([installation guide](https://commondatastorage.googleapis.com/chrome-infra-docs/flat/depot_tools/html/depot_tools_tutorial.html))
 - **C++ build tools** (e.g., clang, ninja, cmake, make, etc.)
 - **OpenSSL** (for certificate generation)
+- **CUDA Toolkit 12.8+ (Optional)** - For GPU acceleration of Whisper/LLaMA models. See [CUDA.md](CUDA.md) for compatibility details.
 
 ### Install depot_tools
 ```bash
@@ -44,7 +45,7 @@ All builds are managed by the `build.sh` script in the project root. The script 
 - Generate self-signed certificates if needed
 
 ### Required Steps for Speech-Enabled Builds
-If you want to build with speech (Whisper integration), you must:
+If you want to build with whillats (Whisper/Llama/TTS integration), you must:
 1. Initialize and update submodules:
    ```bash
    git submodule update --init --recursive
@@ -58,15 +59,15 @@ If you want to build with speech (Whisper integration), you must:
    make release
    cd -
    ```
-Run these steps before running the main build script with the `speech` option.
+Run these steps before running the main build script with the `whillats` option.
 
 ### Usage
 ```bash
-./build.sh [debug|release] [speech]
+./build.sh [debug|release] [whillats]
 ```
 - `debug` (default): Build with debug symbols and no optimizations
 - `release`: Build with optimizations for production
-- `speech`: Enable AI speech audio device support (enables Whisper integration)
+- `whillats`: Enable advanced AI capabilities with Whisper + LLaMA + TTS integration (includes speech functionality)
 
 #### Examples
 - **Debug build (default):**
@@ -79,18 +80,18 @@ Run these steps before running the main build script with the `speech` option.
   ```bash
   ./build.sh release
   ```
-- **Debug build with speech:**
+- **Debug build with whillats:**
   ```bash
-  ./build.sh debug speech
+  ./build.sh debug whillats
   ```
-- **Release build with speech:**
+- **Release build with whillats:**
   ```bash
-  ./build.sh release speech
+  ./build.sh release whillats
   ```
 
-### What does the 'speech' option do?
-- When you add `speech` as the second argument, the build enables `rtc_use_speech_audio_devices`, allowing the use of AI-powered speech-to-text (Whisper) in the application.
-- If omitted, the build uses standard audio devices.
+### What do the AI options do?
+- **`whillats`**: Enables advanced AI capabilities including both Whisper (speech-to-text) and LLaMA (language model) integration. This builds the complete AI pipeline with GPU acceleration support when available.
+- If omitted, the build uses standard audio devices without AI features.
 
 ---
 
@@ -98,6 +99,12 @@ Run these steps before running the main build script with the `speech` option.
 - The script auto-detects your architecture (`x86_64`, `arm64`, etc.) and sets up sysroots/toolchains as needed.
 - On ARM64 (aarch64), the script uses the system Clang and may build additional runtime libraries if missing.
 - On x86_64, standard Chromium sysroots and toolchains are used.
+
+### GPU Acceleration (CUDA)
+- **CUDA Support**: The build system automatically detects NVIDIA CUDA and attempts to enable GPU acceleration for Whisper and LLaMA models.
+- **Current Status**: Due to compatibility issues between CUDA 12.8 and glibc 2.41, the build currently uses **CPU-only mode** for maximum stability.
+- **Performance**: CPU-only mode with OpenMP provides excellent performance for real-time speech processing.
+- **Future CUDA**: Your RTX GPU is ready for CUDA when compatibility issues are resolved. See [CUDA.md](CUDA.md) for technical details and solutions.
 
 ---
 
@@ -121,7 +128,7 @@ src/out/debug/direct_app --mode=callee 127.0.0.1:3456 --encryption --webrtc_cert
 # Example: Run as caller
 src/out/debug/direct_app --mode=caller 127.0.0.1:3456 --encryption --webrtc_cert_path=src/cert.pem --webrtc_key_path=src/key.pem
 
-# With Whisper speech enabled
+# With Whisper enabled
 src/out/debug/direct_app --mode=callee 127.0.0.1:3456 --whisper --encryption
 src/out/debug/direct_app --mode=caller 127.0.0.1:3456 --whisper --encryption
 ```
@@ -208,6 +215,8 @@ Adjust these fields as needed for your deployment and use case.
 - If you encounter missing dependencies, ensure all prerequisites are installed.
 - For Linux/ARM64, the script will attempt to build missing runtime libraries if needed.
 - If the build fails, check the output for error messages and ensure you are on the correct branch (`develop`).
+- **CUDA Issues**: If you see CUDA-related build errors, refer to [CUDA.md](CUDA.md) for detailed troubleshooting and compatibility information.
+- **Math Function Errors**: Conflicts between CUDA 12.8 and glibc 2.41 are automatically handled by falling back to CPU-only mode.
 
 ---
 
