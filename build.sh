@@ -5,6 +5,7 @@ set -e
 
 # Always set repo root ONCE at the top
 REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 
 # Clean up old directories if they exist, but keep src
 echo "Cleaning up old directories..."
@@ -14,9 +15,9 @@ if [ -f ".gclient" ]; then
 fi
 
 # Ensure we're on the avatar branch
-echo "Switching to development branch..."
-git fetch origin develop 
-git checkout develop 
+echo "Switching to $CURRENT_BRANCH branch..."
+git fetch origin $CURRENT_BRANCH 
+git checkout $CURRENT_BRANCH 
 
 # Verify we're on the correct branch
 echo "Current commit: $(git rev-parse HEAD)"
@@ -58,8 +59,8 @@ cp .vpython3 src/ || { echo "WARNING: .vpython3 not found in root, build may fai
 # Navigate to src directory
 cd src
 
-git fetch origin develop 
-git checkout develop 
+git fetch origin $CURRENT_BRANCH 
+git checkout $CURRENT_BRANCH 
 
 # Detect platform architecture for sysroot
 ARCH=$(uname -m)
