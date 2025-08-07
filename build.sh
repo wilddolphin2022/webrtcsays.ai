@@ -41,21 +41,19 @@ solutions = [
 ]
 EOF
 
-if [ -d "~/Public/depot_tools" ]; then
-    PATH="$PATH:~/Public/depot_tools"
-    echo "Added ~/Public/depot_tools to PATH"
+if [ -d "$HOME/depot_tools" ]; then
+    PATH="$PATH:$HOME/depot_tools"
+    echo "Added $HOME/depot_tools to PATH"
 else
-    echo "~/Public/depot_tools not found. Please install depot_tools manually."
-    exit 1
+    if [ -d "$HOME/Public/depot_tools" ]; then
+        PATH="$PATH:$HOME/Public/depot_tools"
+        echo "Added $HOME/Public/depot_tools to PATH"
+    else
+        echo "$HOME/Public/depot_tools not found. Please install depot_tools manually."
+        exit 1
+    fi
 fi
 
-if [ -d "~/Public/depot_tools" ]; then
-    PATH="$PATH:~/depot_tools"
-    echo "Added ~/depot_tools to PATH"
-else
-    echo "~/depot_tools not found. Please install depot_tools manually."
-    exit 1
-fi
 
 # Check if src directory exists and is initialized
 if [ -d "src" ] && [ -d "src/build" ] && [ -f "src/.git/HEAD" ]; then
