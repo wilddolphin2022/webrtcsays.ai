@@ -164,6 +164,20 @@ build_whillats() {
         echo "ERROR: $WHILLATS_DIR directory not found."
         exit 1
     fi
+    
+    # Check if CMakeLists.txt exists in the whillats directory
+    if [ ! -f "$WHILLATS_DIR/CMakeLists.txt" ]; then
+        echo "ERROR: CMakeLists.txt not found in $WHILLATS_DIR"
+        echo "Contents of $WHILLATS_DIR:"
+        ls -la "$WHILLATS_DIR"
+        echo "Re-initializing submodule..."
+        git submodule deinit -f modules/third_party/whillats
+        git submodule update --init --recursive modules/third_party/whillats
+        if [ ! -f "$WHILLATS_DIR/CMakeLists.txt" ]; then
+            echo "ERROR: Still no CMakeLists.txt after re-initialization. Submodule may be corrupted."
+            exit 1
+        fi
+    fi
 
     pushd "$WHILLATS_DIR"
 
@@ -202,12 +216,35 @@ build_whillats() {
             CMAKE_CUDA_DISABLED="-DGGML_CUDA=OFF -DWHISPER_CUDA=OFF -DGGML_CUBLAS=OFF -DLLAMA_CUDA=OFF"
         fi
     fi
+    # Check available disk space before building
+    AVAILABLE_SPACE=$(df . | tail -1 | awk '{print $4}')
+    echo "[build-whillats] Available disk space: ${AVAILABLE_SPACE}KB"
+    if [ "$AVAILABLE_SPACE" -lt 10485760 ]; then  # Less than 10GB
+        echo "[build-whillats] WARNING: Less than 10GB available disk space. Build may fail."
+    fi
+    
+    # Clean any previous build to free space
+    if [ -d "build" ]; then
+        echo "[build-whillats] Removing previous build directory to free space..."
+        rm -rf build
+    fi
+    
+    # Add timeout and verbose output for cmake
+    echo "[build-whillats] Starting CMake configuration with timeout..."
     if [ "$BUILD_TYPE" = "debug" ]; then
-        cmake -B build -DCMAKE_BUILD_TYPE=Debug -DGGML_METAL=OFF $CMAKE_CUDA_DISABLED
-        make debug
+        timeout 600 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DGGML_METAL=OFF $CMAKE_CUDA_DISABLED --fresh || {
+            echo "[build-whillats] CMake configuration timed out or failed. Retrying with verbose output..."
+            cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DGGML_METAL=OFF $CMAKE_CUDA_DISABLED --fresh -DCMAKE_VERBOSE_MAKEFILE=ON
+        }
+        echo "[build-whillats] Starting build..."
+        cmake --build build --parallel 4 --verbose
     else
-        cmake -B build -DCMAKE_BUILD_TYPE=Release -DGGML_METAL=OFF $CMAKE_CUDA_DISABLED
-        make release
+        timeout 600 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DGGML_METAL=OFF $CMAKE_CUDA_DISABLED --fresh || {
+            echo "[build-whillats] CMake configuration timed out or failed. Retrying with verbose output..."
+            cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DGGML_METAL=OFF $CMAKE_CUDA_DISABLED --fresh -DCMAKE_VERBOSE_MAKEFILE=ON
+        }
+        echo "[build-whillats] Starting build..."
+        cmake --build build --parallel 4 --verbose
     fi
     popd
     echo "[build-whillats] Whisper/Llama/TTS build completed."
