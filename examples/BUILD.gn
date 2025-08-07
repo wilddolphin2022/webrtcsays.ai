@@ -1151,9 +1151,13 @@ if (!build_with_chromium) {
           lib_dirs = [ "../modules/third_party/whillats/build/lib/" + whillats_subdir ]
           libs = [ "whillats" ]
         } else if (is_linux) {
-          # Add necessary libs for whillats on Linux if applicable
-          # lib_dirs = [ ... ]
-          # libs = [ ... ]
+          if (is_debug) {
+            whillats_subdir = "Debug"
+          } else {
+            whillats_subdir = "Release"
+          }
+          lib_dirs = [ "../modules/third_party/whillats/build/lib/" + whillats_subdir ]
+          libs = [ "whillats", "whisper", "espeak-ng", "speechPlayer", "ucd", "mtmd_shared" ]
         }
       }
 
@@ -1231,7 +1235,14 @@ if (!build_with_chromium) {
         }
         ldflags += [ "-Wl,-rpath,@loader_path/../../modules/third_party/whillats/build/lib/" + whillats_subdir ]
       } else if (is_linux) {
-          # Add necessary libs/rpath for whillats on Linux if applicable
+          if (is_debug) {
+            whillats_subdir = "Debug"
+          } else {
+            whillats_subdir = "Release"
+          }
+          lib_dirs = [ "../modules/third_party/whillats/build/lib/" + whillats_subdir ]
+          libs = [ "whillats", "whisper", "espeak-ng", "speechPlayer", "ucd", "mtmd_shared" ]
+          ldflags += [ "-Wl,-rpath,\$ORIGIN/../../modules/third_party/whillats/build/lib/" + whillats_subdir ]
       }
     }
 
