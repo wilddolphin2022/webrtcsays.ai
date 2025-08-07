@@ -172,7 +172,7 @@ Options parseOptions(const std::vector<std::string>& args) {
   // Restore original help string
   opts.help_string =
       "Usage:\n"
-      "direct [options] address [options]\n\n"
+      "directcall [options] address [options]\n\n"
       "Options:\n"
       "  --config <path>                  Load options from JSON config file.\n"
       "                                     Command-line options override config file.\n"
@@ -196,12 +196,12 @@ Options parseOptions(const std::vector<std::string>& args) {
       "  --room_name=<name>                 Room name to join (default: room1)\n"
       "  --help                             Show this help message\n\n"
       "Examples (callee called first, encryption is recommended):\n"
-      "  direct --config settings.json\n"
-      "  direct --config settings.json --mode=callee --no-encryption\n"
-      "  direct --mode=callee --user_name=alice --room_name=meeting1 192.168.88.225:3456 --no-encryption\n"
-      "  direct --mode=callee --user_name=bob --room_name=meeting1 192.168.88.225:3456 --encryption --whisper"
+      "  directcall --config settings.json\n"
+      "  directcall --config settings.json --mode=callee --no-encryption\n"
+      "  directcall --mode=callee --user_name=alice --room_name=meeting1 192.168.88.225:3456 --no-encryption\n"
+      "  directcall --mode=callee --user_name=bob --room_name=meeting1 192.168.88.225:3456 --encryption --whisper"
       " --whisper_model=/path/to/model.bin --llama_model=/path/to/llama.gguf\n"
-      "  direct --mode=caller --user_name=charlie --target_name=alice --room_name=room101 192.168.88.225:3456 --encryption\n"
+      "  directcall --mode=caller --user_name=charlie --target_name=alice --room_name=room101 192.168.88.225:3456 --encryption\n"
       ;
 
   // Set of known options (with and without =)
