@@ -208,7 +208,7 @@ build_whillats() {
 
     pushd "$WHILLATS_DIR"
 
-    # Patch: Check for GCC 11 and set build configuration
+    # Patch: Check for GCC 11 and set build configuration (Linux only)
     CMAKE_CUDA_DISABLED=""
     CMAKE_CUDA_COMPILER_ARG=""
     CMAKE_CUDA_HOST_COMPILER_ARG=""
@@ -217,7 +217,12 @@ build_whillats() {
     CMAKE_CUDA_ARCH=""
     CMAKE_CUDA_FLAGS=""
     GGML_CUDA_ON=""
-    if grep -q 'GGML_CUDA' CMakeLists.txt || grep -r 'CUDA' .; then
+    
+    # Skip CUDA configuration on macOS and enable Metal instead
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        echo "[build-whillats] macOS detected, enabling Metal GPU acceleration and disabling CUDA"
+        CMAKE_CUDA_DISABLED="-DGGML_CUDA=OFF -DWHISPER_CUDA=OFF -DGGML_CUBLAS=OFF -DLLAMA_CUDA=OFF"
+    elif grep -q 'GGML_CUDA' CMakeLists.txt || grep -r 'CUDA' .; then
         GGML_CUDA_ON="1"
         if ! command -v gcc-11 >/dev/null 2>&1 || ! command -v g++-11 >/dev/null 2>&1; then
             echo "[build-whillats] gcc-11/g++-11 not found. Attempting to install..."
@@ -256,19 +261,26 @@ build_whillats() {
         rm -rf build
     fi
     
+    # Use Metal on macOS, disable on other platforms
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        METAL_ARG="-DGGML_METAL=ON"
+    else
+        METAL_ARG="-DGGML_METAL=OFF"
+    fi
+    
     # Add timeout and verbose output for cmake
     echo "[build-whillats] Starting CMake configuration with timeout..."
     if [ "$BUILD_TYPE" = "debug" ]; then
-        timeout 600 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DGGML_METAL=OFF $CMAKE_CUDA_DISABLED --fresh || {
+        timeout 600 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug $METAL_ARG $CMAKE_CUDA_DISABLED --fresh || {
             echo "[build-whillats] CMake configuration timed out or failed. Retrying with verbose output..."
-            cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DGGML_METAL=OFF $CMAKE_CUDA_DISABLED --fresh -DCMAKE_VERBOSE_MAKEFILE=ON
+            cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug $METAL_ARG $CMAKE_CUDA_DISABLED --fresh -DCMAKE_VERBOSE_MAKEFILE=ON
         }
         echo "[build-whillats] Starting build..."
         cmake --build build --parallel 4 --verbose
     else
-        timeout 600 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DGGML_METAL=OFF $CMAKE_CUDA_DISABLED --fresh || {
+        timeout 600 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release $METAL_ARG $CMAKE_CUDA_DISABLED --fresh || {
             echo "[build-whillats] CMake configuration timed out or failed. Retrying with verbose output..."
-            cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DGGML_METAL=OFF $CMAKE_CUDA_DISABLED --fresh -DCMAKE_VERBOSE_MAKEFILE=ON
+            cmake -S . -B build -DCMAKE_BUILD_TYPE=Release $METAL_ARG $CMAKE_CUDA_DISABLED --fresh -DCMAKE_VERBOSE_MAKEFILE=ON
         }
         echo "[build-whillats] Starting build..."
         cmake --build build --parallel 4 --verbose
