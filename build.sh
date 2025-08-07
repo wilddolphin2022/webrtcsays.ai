@@ -41,6 +41,19 @@ solutions = [
 ]
 EOF
 
+# Set Python to 3.12 for depot_tools compatibility (3.13 has issues)
+if command -v python3.12 >/dev/null 2>&1; then
+    export PYTHON_BIN_PATH=$(which python3.12)
+    export DEPOT_TOOLS_PYTHON3_PATH=$(which python3.12)
+    echo "Using Python 3.12 for depot_tools compatibility"
+elif command -v python3.11 >/dev/null 2>&1; then
+    export PYTHON_BIN_PATH=$(which python3.11)
+    export DEPOT_TOOLS_PYTHON3_PATH=$(which python3.11)
+    echo "Using Python 3.11 for depot_tools compatibility"
+else
+    echo "Warning: depot_tools may have compatibility issues with Python 3.13+"
+fi
+
 if [ -d "$HOME/depot_tools" ]; then
     PATH="$PATH:$HOME/depot_tools"
     echo "Added $HOME/depot_tools to PATH"
