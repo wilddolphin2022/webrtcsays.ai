@@ -1035,7 +1035,7 @@ if (!build_with_chromium) {
 
   } else {
     # Keep the original shared_library definition for non-iOS platforms
-    shared_library("direct_lib") {
+    shared_library("directlib") {
       output_name = "direct"
       configs += [ "//:common_inherited_config" ]
       if (!defined(testonly) || !testonly) {
@@ -1144,17 +1144,17 @@ if (!build_with_chromium) {
         if (is_mac) {
           frameworks = [ "CoreAudio.framework" ]
           if (is_debug) {
-            whillats_subdir = "Debug"
+            whillats_subdir = "debug"
           } else {
-            whillats_subdir = "Release"
+            whillats_subdir = "release"
           }
           lib_dirs = [ "../modules/third_party/whillats/build/lib/" + whillats_subdir ]
           libs = [ "whillats" ]
         } else if (is_linux) {
           if (is_debug) {
-            whillats_subdir = "Debug"
+            whillats_subdir = "debug"
           } else {
-            whillats_subdir = "Release"
+            whillats_subdir = "release"
           }
           lib_dirs = [ "../modules/third_party/whillats/build/lib/" + whillats_subdir ]
           libs = [ "whillats", "whisper", "espeak-ng", "speechPlayer", "ucd", "mtmd_shared" ]
@@ -1173,7 +1173,7 @@ if (!build_with_chromium) {
     }
   }
 
-  rtc_executable("direct_app") {
+  rtc_executable("directcall") {
     testonly = true
     defines = []
     include_dirs = []
@@ -1212,14 +1212,14 @@ if (!build_with_chromium) {
 
     } else {
       # Link against the shared library on other platforms
-      deps = [ ":direct_lib" ]
+      deps = [ ":directlib" ]
       if (is_mac) {
         if (!defined(ldflags)) { ldflags = [] }
         ldflags += [ "-Wl,-rpath,@loader_path/" ]
         ldflags += [ "-Wl,-rpath,@loader_path/../Default" ] # Adjust as needed
       } else if (is_linux) {
           if (!defined(ldflags)) { ldflags = [] }
-          # Need rpath to find direct_lib relative to executable
+          # Need rpath to find directlib relative to executable
           ldflags += [ "-Wl,-rpath,\$ORIGIN" ]
       }
     }
@@ -1229,16 +1229,16 @@ if (!build_with_chromium) {
       if(is_mac) {
         frameworks = [ "CoreAudio.framework" ] # System framework
         if (is_debug) {
-          whillats_subdir = "Debug"
+          whillats_subdir = "debug"
         } else {
-          whillats_subdir = "Release"
+          whillats_subdir = "release"
         }
         ldflags += [ "-Wl,-rpath,@loader_path/../../modules/third_party/whillats/build/lib/" + whillats_subdir ]
       } else if (is_linux) {
           if (is_debug) {
-            whillats_subdir = "Debug"
+            whillats_subdir = "debug"
           } else {
-            whillats_subdir = "Release"
+            whillats_subdir = "release"
           }
           lib_dirs = [ "../modules/third_party/whillats/build/lib/" + whillats_subdir ]
           libs = [ "whillats", "whisper", "espeak-ng", "speechPlayer", "ucd", "mtmd_shared" ]

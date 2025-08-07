@@ -40,7 +40,7 @@ export PATH=~/depot_tools:$PATH
 All builds are managed by the `build.sh` script in the project root. The script will:
 - Set up the source tree and dependencies
 - Configure the build for your platform/architecture
-- Build the `direct_app` binary
+- Build the `directcall` binary
 - Optionally enable AI speech features
 - Generate self-signed certificates if needed
 
@@ -110,8 +110,8 @@ Run these steps before running the main build script with the `whillats` option.
 
 ## Output
 - The main binary is built as:
-  - `src/out/debug/direct_app` (for debug)
-  - `src/out/release/direct_app` (for release)
+  - `src/out/debug/directcall` (for debug)
+  - `src/out/release/directcall` (for release)
 - Self-signed certificates (`cert.pem`, `key.pem`) are generated in `src/` if not present.
 
 ---
@@ -120,17 +120,17 @@ Run these steps before running the main build script with the `whillats` option.
 After building, the script will attempt to run the binary automatically. You can also run it manually:
 ```bash
 # Show help
-src/out/debug/direct_app --help
+src/out/debug/directcall --help
 
 # Example: Run as callee
-src/out/debug/direct_app --mode=callee 127.0.0.1:3456 --encryption --webrtc_cert_path=src/cert.pem --webrtc_key_path=src/key.pem
+src/out/debug/directcall --mode=callee 127.0.0.1:3456 --encryption --webrtc_cert_path=src/cert.pem --webrtc_key_path=src/key.pem
 
 # Example: Run as caller
-src/out/debug/direct_app --mode=caller 127.0.0.1:3456 --encryption --webrtc_cert_path=src/cert.pem --webrtc_key_path=src/key.pem
+src/out/debug/directcall --mode=caller 127.0.0.1:3456 --encryption --webrtc_cert_path=src/cert.pem --webrtc_key_path=src/key.pem
 
 # With Whisper enabled
-src/out/debug/direct_app --mode=callee 127.0.0.1:3456 --whisper --encryption
-src/out/debug/direct_app --mode=caller 127.0.0.1:3456 --whisper --encryption
+src/out/debug/directcall --mode=callee 127.0.0.1:3456 --whisper --encryption
+src/out/debug/directcall --mode=caller 127.0.0.1:3456 --whisper --encryption
 ```
 
 ---
@@ -141,7 +141,7 @@ The `config.json` file allows you to predefine all runtime options for WebRTCsay
 To use a configuration file, pass it to the application with the `--config` flag:
 
 ```bash
-src/out/debug/direct_app --config config.json
+src/out/debug/directcall --config config.json
 ```
 
 You can still override individual options on the command line if needed. The application will load settings from `config.json` and use them as defaults unless overridden.
