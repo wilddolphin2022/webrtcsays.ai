@@ -546,8 +546,13 @@ if (rtc_use_speech_audio_devices) {
     # Add platform-specific library linking
     if (is_linux) {
       # Add library paths and libraries for Linux
+      if (is_debug) {
+        whillats_subdir = "debug"
+      } else {
+        whillats_subdir = "release"
+      }
       lib_dirs = [ 
-        "//modules/third_party/whillats/build/lib/Debug",
+        "//modules/third_party/whillats/build/lib/" + whillats_subdir,
         "//modules/third_party/whillats/build/bin"
       ]
       libs = [
@@ -574,9 +579,9 @@ if (rtc_use_speech_audio_devices) {
     } else if (is_mac) {
       # Mac library configuration would go here if needed
       if (is_debug) {
-        whillats_subdir = "Debug"
+        whillats_subdir = "debug"
       } else {
-        whillats_subdir = "Release"
+        whillats_subdir = "release"
       }
       lib_dirs = [ "//modules/third_party/whillats/build/lib/" + whillats_subdir ]
       libs = [ "whillats" ]
