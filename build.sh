@@ -55,12 +55,12 @@ else
 fi
 
 if [ -d "$HOME/depot_tools" ]; then
-    PATH="$PATH:$HOME/depot_tools"
-    echo "Added $HOME/depot_tools to PATH"
+    PATH="$HOME/depot_tools:$PATH"
+    echo "Added $HOME/depot_tools to PATH (prepended)"
 else
     if [ -d "$HOME/Public/depot_tools" ]; then
-        PATH="$PATH:$HOME/Public/depot_tools"
-        echo "Added $HOME/Public/depot_tools to PATH"
+        PATH="$HOME/Public/depot_tools:$PATH"
+        echo "Added $HOME/Public/depot_tools to PATH (prepended)"
     else
         echo "$HOME/Public/depot_tools not found. Please install depot_tools manually."
         exit 1
