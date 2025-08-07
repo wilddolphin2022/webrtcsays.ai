@@ -111,9 +111,9 @@ else
     echo "Sysroot install script not found or not required for this architecture. Skipping sysroot installation."
 fi
 
-# For ARM64, use system Clang and ensure required packages are installed
-if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
-    echo "Detected ARM64 platform. Using system Clang and ensuring required packages are installed..."
+# For ARM64 Linux, use system Clang and ensure required packages are installed
+if [[ "$OSTYPE" != "darwin"* ]] && ([ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]); then
+    echo "Detected ARM64 Linux platform. Using system Clang and ensuring required packages are installed..."
     apt-get update
     apt-get install -y clang lld || {
         echo "ERROR: Failed to install clang/lld. Please check your APT sources and keys.";
@@ -127,7 +127,7 @@ if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
     echo "System Clang found at $CLANG_PATH"
     # Set GN args to use system Clang and specify clang_version 14
     EXTRA_ARGS="clang_base_path=\"/usr\" clang_use_chrome_plugins=false target_cpu=\"arm64\" use_custom_libcxx=false clang_version=\"14\""
-    echo "Skipping prebuilt Clang download for ARM64."
+    echo "Skipping prebuilt Clang download for ARM64 Linux."
     # Build and install libclang_rt.builtins.a if missing
     BUILTINS_PATH="/usr/lib/clang/14/lib/aarch64-unknown-linux-gnu/libclang_rt.builtins.a"
     if [ ! -f "$BUILTINS_PATH" ]; then
@@ -165,6 +165,18 @@ if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
     # Skip update.py
 else
     python3 tools/clang/scripts/update.py
+fi
+
+# For macOS, set deployment target and handle ARM64 if applicable
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    echo "Detected macOS platform. Setting deployment target to 15.0..."
+    if [ "$ARCH" = "arm64" ]; then
+        echo "Detected macOS ARM64 (Apple Silicon). Combining ARM64 and macOS settings..."
+        EXTRA_ARGS="mac_deployment_target=\"15.0\" target_cpu=\"arm64\""
+    else
+        echo "Detected macOS x86_64 (Intel). Using macOS settings only..."
+        EXTRA_ARGS="mac_deployment_target=\"15.0\""
+    fi
 fi
 
 build_whillats() {
