@@ -157,7 +157,7 @@ build_whillats() {
     # Only update/init submodule if whillats dir does not exist or is empty
     if [ ! -d "$WHILLATS_DIR" ] || [ -z "$(ls -A "$WHILLATS_DIR" 2>/dev/null)" ]; then
         echo "Initializing parent submodule: modules/third_party/whillats"
-        git -C "$REPO_ROOT" submodule update --init modules/third_party/whillats
+        git submodule update --init modules/third_party/whillats
     fi
 
     if [ ! -d "$WHILLATS_DIR" ]; then
@@ -166,15 +166,6 @@ build_whillats() {
     fi
 
     pushd "$WHILLATS_DIR"
-
-    # Clone required third_party repositories if not present
-    mkdir -p third_party
-    if [ ! -d "third_party/whisper.cpp" ]; then
-      git clone https://github.com/ggerganov/whisper.cpp third_party/whisper.cpp
-    fi
-    if [ ! -d "third_party/llama.cpp" ]; then
-      git clone https://github.com/ggerganov/llama.cpp third_party/llama.cpp
-    fi
 
     # Patch: Check for GCC 11 and set build configuration
     CMAKE_CUDA_DISABLED=""
@@ -205,17 +196,7 @@ build_whillats() {
             echo "[build-whillats] Your RTX 3050 is ready for CUDA when compatibility is resolved"
             echo "[build-whillats] Building with optimized CPU-only mode for now"
             CMAKE_CUDA_DISABLED="-DGGML_CUDA=OFF -DWHISPER_CUDA=OFF -DGGML_CUBLAS=OFF -DLLAMA_CUDA=OFF"
-            # Patch: Run cmake for whisper.cpp and llama.cpp with CPU-only
-            if [ -d third_party/whisper.cpp ]; then
-                pushd third_party/whisper.cpp
-                cmake . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo $CMAKE_CUDA_DISABLED
-                popd
-            fi
-            if [ -d third_party/llama.cpp ]; then
-                pushd third_party/llama.cpp
-                cmake . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo $CMAKE_CUDA_DISABLED
-                popd
-            fi
+
         else
             echo "[build-whillats] NVCC not found. Building in CPU-only mode."
             CMAKE_CUDA_DISABLED="-DGGML_CUDA=OFF -DWHISPER_CUDA=OFF -DGGML_CUBLAS=OFF -DLLAMA_CUDA=OFF"
