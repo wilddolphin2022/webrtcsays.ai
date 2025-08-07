@@ -41,6 +41,22 @@ solutions = [
 ]
 EOF
 
+if [ -d "~/Public/depot_tools" ]; then
+    PATH="$PATH:~/Public/depot_tools"
+    echo "Added ~/Public/depot_tools to PATH"
+else
+    echo "~/Public/depot_tools not found. Please install depot_tools manually."
+    exit 1
+fi
+
+if [ -d "~/Public/depot_tools" ]; then
+    PATH="$PATH:~/depot_tools"
+    echo "Added ~/depot_tools to PATH"
+else
+    echo "~/depot_tools not found. Please install depot_tools manually."
+    exit 1
+fi
+
 # Check if src directory exists and is initialized
 if [ -d "src" ] && [ -d "src/build" ] && [ -f "src/.git/HEAD" ]; then
     echo "Skipping gclient sync as src directory already exists and appears initialized."
@@ -159,6 +175,19 @@ build_whillats() {
         echo "Initializing parent submodule: modules/third_party/whillats"
         git submodule update --init modules/third_party/whillats
     fi
+    
+    # Ensure whillats submodule is on the same branch as main code
+    echo "[build-whillats] Ensuring whillats is on branch: $CURRENT_BRANCH"
+    pushd "$WHILLATS_DIR"
+    # Check if the branch exists in the submodule
+    if git show-ref --verify --quiet refs/heads/$CURRENT_BRANCH; then
+        echo "[build-whillats] Branch $CURRENT_BRANCH exists in whillats, checking out..."
+        git checkout $CURRENT_BRANCH
+        git pull origin $CURRENT_BRANCH || echo "[build-whillats] Warning: Could not pull latest changes for $CURRENT_BRANCH"
+    else
+        echo "[build-whillats] Branch $CURRENT_BRANCH does not exist in whillats submodule, staying on current commit"
+    fi
+    popd
 
     if [ ! -d "$WHILLATS_DIR" ]; then
         echo "ERROR: $WHILLATS_DIR directory not found."
@@ -278,10 +307,10 @@ fi
 
 # Set binary path and build dir based on build type and SRC_DIR
 if [ "$BUILD_TYPE" = "debug" ]; then
-    BINARY_PATH="$SRC_DIR/out/debug/direct_app"
+    BINARY_PATH="$SRC_DIR/out/debug/directcall"
     BUILD_DIR="$SRC_DIR/out/debug"
 else
-    BINARY_PATH="$SRC_DIR/out/release/direct_app"
+    BINARY_PATH="$SRC_DIR/out/release/directcall"
     BUILD_DIR="$SRC_DIR/out/release"
 fi
 
@@ -339,12 +368,12 @@ fi
 if [ "$BUILD_TYPE" = "debug" ]; then
     echo "Building WebRTC project (debug, whillats: $ENABLE_WHILLATS)..."
     (cd $SRC_DIR && gn gen out/debug --args="is_debug=true rtc_include_opus=true rtc_enable_symbol_export=true rtc_build_examples=true rtc_use_speech_audio_devices=$ENABLE_WHILLATS $EXTRA_ARGS")
-    (cd $SRC_DIR && ninja -C out/$BUILD_TYPE direct_app)
+    (cd $SRC_DIR && ninja -C out/$BUILD_TYPE directcall)
     echo "Debug build completed."
 else
     echo "Building WebRTC project (release, whillats: $ENABLE_WHILLATS)..."
     (cd $SRC_DIR && gn gen out/release --args="is_debug=false rtc_include_opus=true rtc_enable_symbol_export=true rtc_build_examples=true rtc_use_speech_audio_devices=$ENABLE_WHILLATS $EXTRA_ARGS")
-    (cd $SRC_DIR && ninja -C out/$BUILD_TYPE direct_app)
+    (cd $SRC_DIR && ninja -C out/$BUILD_TYPE directcall)
     echo "Release build completed."
 fi
 
