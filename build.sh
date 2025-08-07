@@ -358,8 +358,13 @@ else
     openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -sha256 -days 3650 -nodes -subj "/C=US/ST=CA/L=SanFrancisco/O=Acme/OU=Development/CN=WebRTCsays.ai"    
 fi
 
-echo "Running binary to show help..."
-$BINARY_PATH --help
+LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$REPO_ROOT/src/modules/third_party/whillats/build/lib/$BUILD_TYPE"
+if [ "$ENABLE_WHILLATS" = "true" ]; then
+    LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$REPO_ROOT/src/modules/third_party/whillats/build/lib/$BUILD_TYPE"
+fi
+
+echo "Running binary as LD_LIBRARY_PATH=$LD_LIBRARY_PATH $BINARY_PATH to show help..."
+LD_LIBRARY_PATH=$LD_LIBRARY_PATH $BINARY_PATH --help
 
 #echo "Running binary in callee mode to test signaling..."    
 #$BINARY_PATH --mode=callee  --webrtc_cert_path=cert.pem  --webrtc_key_path=key.pem --user_name=Slim 3.93.50.189:3456
