@@ -32,9 +32,7 @@
 #include "direct.h"
 #include "pc/test/fake_video_track_source.h"
 #include "test/test_video_capturer.h"
-#if defined(WEBRTC_MAC)
-#include "test/mac_capturer.h"
-#elif !defined(WEBRTC_IOS)
+#if !defined(WEBRTC_IOS) && !defined(WEBRTC_MAC)
 #include "test/vcm_capturer.h"
 #endif
 
@@ -185,25 +183,16 @@ CreateCameraVideoSource(DirectPeer* owner, const Options& opts) {
   }
 
   // Create capturer.
-#if defined(WEBRTC_IOS)
+#if defined(WEBRTC_IOS) || defined(WEBRTC_MAC)
   // iOS: avoid linking mac_capturer from test targets; fall back to synthetic source.
   RTC_LOG(LS_WARNING) << "iOS camera capture via MacCapturer is disabled; using fallback video source.";
   return nullptr;
 #else
-#if defined(WEBRTC_MAC)
-  std::unique_ptr<webrtc::test::MacCapturer> capturer(
-      webrtc::test::MacCapturer::Create(static_cast<size_t>(width), static_cast<size_t>(height), static_cast<size_t>(fps), device_index));
-#else
   std::unique_ptr<webrtc::test::VcmCapturer> capturer(
       webrtc::test::VcmCapturer::Create(static_cast<size_t>(width), static_cast<size_t>(height), static_cast<size_t>(fps), device_index));
-#endif
 
   if (!capturer) {
-#if defined(WEBRTC_MAC)
-    RTC_LOG(LS_ERROR) << "Failed to create MacCapturer for camera index " << device_index;
-#else
     RTC_LOG(LS_ERROR) << "Failed to create VcmCapturer for camera index " << device_index;
-#endif
     return nullptr;
   }
 

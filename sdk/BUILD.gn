@@ -1791,19 +1791,27 @@ if (is_ios || is_mac) {
   }
 }
 
-# Conditionally define the config for Whillats framework linking
+# Conditionally define the config for Whillats linking
 if (rtc_use_speech_audio_devices) {
   config("whillats_framework_config") {
     visibility = [ "*" ]
     _whillats_config = "release"
-    if(is_debug) {
+    if (is_debug) {
       _whillats_config = "debug"
     }
 
-    _whillats_framework_dir = rebase_path("//modules/third_party/whillats/build-ios/bin/" + _whillats_config, root_build_dir)
-    ldflags = [
-      "-F" + _whillats_framework_dir,
-    ]
-    frameworks = [ "whillats.framework" ]
+    if (is_ios) {
+      _whillats_framework_dir = rebase_path("//modules/third_party/whillats/build-ios/bin/" + _whillats_config, root_build_dir)
+      ldflags = [
+        "-F" + _whillats_framework_dir,
+      ]
+      frameworks = [ "whillats.framework" ]
+    } else {
+      _whillats_lib_dir = rebase_path("//modules/third_party/whillats/build/lib/" + _whillats_config, root_build_dir)
+      ldflags = [
+        "-L" + _whillats_lib_dir,
+        "-lwhillats",
+      ]
+    }
   }
 }

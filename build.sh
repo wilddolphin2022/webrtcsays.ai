@@ -200,18 +200,8 @@ build_whillats() {
         git submodule update --init modules/third_party/whillats
     fi
     
-    # Ensure whillats submodule is on the same branch as main code
-    echo "[build-whillats] Ensuring whillats is on branch: $CURRENT_BRANCH"
-    pushd "$WHILLATS_DIR"
-    # Check if the branch exists in the submodule
-    if git show-ref --verify --quiet refs/heads/$CURRENT_BRANCH; then
-        echo "[build-whillats] Branch $CURRENT_BRANCH exists in whillats, checking out..."
-        git checkout $CURRENT_BRANCH
-        git pull origin $CURRENT_BRANCH || echo "[build-whillats] Warning: Could not pull latest changes for $CURRENT_BRANCH"
-    else
-        echo "[build-whillats] Branch $CURRENT_BRANCH does not exist in whillats submodule, staying on current commit"
-    fi
-    popd
+    # Do not modify submodule branch if there are local edits; builds should use current working tree
+    echo "[build-whillats] Skipping submodule branch checkout to preserve local edits"
 
     if [ ! -d "$WHILLATS_DIR" ]; then
         echo "ERROR: $WHILLATS_DIR directory not found."
@@ -224,8 +214,8 @@ build_whillats() {
         echo "Contents of $WHILLATS_DIR:"
         ls -la "$WHILLATS_DIR"
         echo "Re-initializing submodule..."
-        git submodule deinit -f modules/third_party/whillats
-        git submodule update --init --recursive modules/third_party/whillats
+        git submodule deinit -f modules/third_party/whillats || true
+        git submodule update --init --recursive modules/third_party/whillats || true
         if [ ! -f "$WHILLATS_DIR/CMakeLists.txt" ]; then
             echo "ERROR: Still no CMakeLists.txt after re-initialization. Submodule may be corrupted."
             exit 1
@@ -344,6 +334,16 @@ if [ $# -ge 2 ]; then
                 git submodule update --recursive --remote modules/third_party/whillats || true
             fi
             (cd "$WHILLATS_DIR" && make ios)
+        else
+            echo "Building whillats for host platform ($BUILD_TYPE)..."
+            if [ ! -d "$WHILLATS_DIR" ] || [ -z "$(ls -A "$WHILLATS_DIR" 2>/dev/null)" ]; then
+                echo "Initializing parent submodule: modules/third_party/whillats"
+                git submodule update --init --recursive modules/third_party/whillats
+            else
+                echo "Updating submodule: modules/third_party/whillats"
+                git submodule update --recursive --remote modules/third_party/whillats || true
+            fi
+            build_whillats "$BUILD_TYPE"
         fi
     fi
 fi
