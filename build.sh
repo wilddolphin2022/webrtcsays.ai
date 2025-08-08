@@ -328,10 +328,14 @@ if [ $# -ge 2 ]; then
             echo "Building whillats for iOS..."
             if [ ! -d "$WHILLATS_DIR" ] || [ -z "$(ls -A "$WHILLATS_DIR" 2>/dev/null)" ]; then
                 echo "Initializing parent submodule: modules/third_party/whillats"
-                git submodule update --init --recursive modules/third_party/whillats
+                git submodule update --init modules/third_party/whillats
+                pushd .
+                cd modules/third_party/whillats
+                git checkout ${WHISPER_TAG}
+                git pull origin ${WHISPER_TAG}
+                popd
             else
-                echo "Updating submodule: modules/third_party/whillats"
-                git submodule update --recursive --remote modules/third_party/whillats || true
+                echo "Submodule exists; skipping update to preserve local edits."
             fi
             (cd "$WHILLATS_DIR" && make ios)
         else
@@ -412,8 +416,8 @@ if [ "$IOS_BUILD" = "true" ]; then
     echo "Generating iOS build configuration..."
     (cd $SRC_DIR && gn gen out/ios_arm64 --args="$IOS_ARGS")
     
-    echo "Building WebRTC framework and directcall for iOS..."
-    (cd $SRC_DIR && ninja -C out/ios_arm64 directcall)
+    echo "Building WebRTC framework and directcall for iOS (single job to avoid toolchain races)..."
+    (cd $SRC_DIR && ninja -C out/ios_arm64 -j1 directcall)
     echo "iOS build completed."
     
     # Update binary path for iOS
