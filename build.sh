@@ -357,7 +357,7 @@ fi
 
 # Set binary path and build dir based on build type and SRC_DIR
 if [ "$IOS_BUILD" = "true" ]; then
-    BINARY_PATH="$SRC_DIR/out/ios_arm64/examples/directcall"
+    BINARY_PATH="$SRC_DIR/out/ios_arm64/directcall"
     BUILD_DIR="$SRC_DIR/out/ios_arm64"
 elif [ "$BUILD_TYPE" = "debug" ]; then
     BINARY_PATH="$SRC_DIR/out/debug/directcall"
@@ -413,11 +413,11 @@ if [ "$IOS_BUILD" = "true" ]; then
     (cd $SRC_DIR && gn gen out/ios_arm64 --args="$IOS_ARGS")
     
     echo "Building WebRTC framework and directcall for iOS..."
-    (cd $SRC_DIR && ninja -C out/ios_arm64 examples:directcall)
+    (cd $SRC_DIR && ninja -C out/ios_arm64 directcall)
     echo "iOS build completed."
     
     # Update binary path for iOS
-    BINARY_PATH="$SRC_DIR/out/ios_arm64/examples/directcall"
+    BINARY_PATH="$SRC_DIR/out/ios_arm64/directcall"
     
 elif [ "$BUILD_TYPE" = "debug" ]; then
     echo "Building WebRTC project (debug, whillats: $ENABLE_WHILLATS)..."

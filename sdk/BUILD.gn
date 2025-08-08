@@ -1795,7 +1795,12 @@ if (is_ios || is_mac) {
 if (rtc_use_speech_audio_devices) {
   config("whillats_framework_config") {
     visibility = [ "*" ]
-    _whillats_framework_dir = rebase_path("//modules/third_party/whillats/build-ios/lib/Release", root_build_dir)
+    _whillats_config = "release"
+    if(is_debug) {
+      _whillats_config = "debug"
+    }
+
+    _whillats_framework_dir = rebase_path("//modules/third_party/whillats/build-ios/bin/" + _whillats_config, root_build_dir)
     ldflags = [
       "-F" + _whillats_framework_dir,
     ]

@@ -189,7 +189,8 @@ CreateCameraVideoSource(DirectPeer* owner, const Options& opts) {
   // iOS: avoid linking mac_capturer from test targets; fall back to synthetic source.
   RTC_LOG(LS_WARNING) << "iOS camera capture via MacCapturer is disabled; using fallback video source.";
   return nullptr;
-#elif defined(WEBRTC_MAC)
+#else
+#if defined(WEBRTC_MAC)
   std::unique_ptr<webrtc::test::MacCapturer> capturer(
       webrtc::test::MacCapturer::Create(static_cast<size_t>(width), static_cast<size_t>(height), static_cast<size_t>(fps), device_index));
 #else
@@ -214,6 +215,7 @@ CreateCameraVideoSource(DirectPeer* owner, const Options& opts) {
     owner->capturers().push_back(std::move(capturer));
     owner->sinks().push_back(std::move(sink));
   }
+#endif // !WEBRTC_IOS
 
   RTC_LOG(LS_INFO) << "Camera video source created: " << width << "x" << height << "@" << fps << "fps";
 
