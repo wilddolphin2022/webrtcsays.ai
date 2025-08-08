@@ -332,12 +332,15 @@ fi
 if [ $# -ge 2 ]; then
     if [[ "$2" == "whillats" || "$2" == "enable_whillats" ]]; then
         ENABLE_WHILLATS="true"
-        echo "Whillats option enabled: running build_whillats..."
+        echo "Whillats option enabled: building whillats..."
         if [ "$IOS_BUILD" = "true" ]; then
             echo "Building whillats for iOS..."
+            if [ ! -d "$WHILLATS_DIR" ] || [ -z "$(ls -A "$WHILLATS_DIR" 2>/dev/null)" ]; then
+                echo "Initializing parent submodule: modules/third_party/whillats"
+                git submodule update --init modules/third_party/whillats
+            fi            
+
             (cd "$REPO_ROOT/src/modules/third_party/whillats" && make ios)
-        else
-            build_whillats "$BUILD_TYPE"
         fi
     fi
 fi
