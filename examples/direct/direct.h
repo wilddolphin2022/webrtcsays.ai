@@ -447,7 +447,7 @@ class DIRECT_API DirectPeer : public DirectApplication {
   // failures are logged and reported via the boolean return value.
   bool initiateWebRTCCall(const std::string& ip, int port);
 
-  std::vector<std::unique_ptr<webrtc::test::VcmCapturer>> &capturers() { return capturers_; }
+  std::vector<std::unique_ptr<webrtc::test::TestVideoCapturer>> &capturers() { return capturers_; }
   std::vector<std::unique_ptr<CameraFrameSink>>           &sinks() { return sinks_; }
 
  protected:
@@ -474,7 +474,7 @@ class DIRECT_API DirectPeer : public DirectApplication {
   rtc::scoped_refptr<webrtc::AudioTrackInterface> audio_track_;
 
   // Own the lifetime of active camera capturers/sinks so no globals are needed.
-  std::vector<std::unique_ptr<webrtc::test::VcmCapturer>> capturers_;
+  std::vector<std::unique_ptr<webrtc::test::TestVideoCapturer>> capturers_;
   std::vector<std::unique_ptr<CameraFrameSink>>           sinks_;
 
   // Grant helper access to protected members for camera resource storage
