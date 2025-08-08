@@ -1,0 +1,170 @@
+name: Build WebRTC
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        build_type: [debug, release]
+        
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        submodules: recursive
+        
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+        
+    - name: Install depot_tools
+      run: |
+        git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git $HOME/depot_tools
+        echo "$HOME/depot_tools" >> $GITHUB_PATH
+        
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential pkg-config libasound2-dev libgtk-3-dev libxtst6 ninja-build
+        
+    - name: Cache WebRTC source
+      uses: actions/cache@v3
+      with:
+        path: |
+          src
+          .gclient
+          .gclient_entries
+        key: webrtc-src-${{ runner.os }}-${{ hashFiles('DEPS') }}
+        restore-keys: |
+          webrtc-src-${{ runner.os }}-
+          
+    - name: Build WebRTC
+      run: |
+        chmod +x build.sh
+        ./build.sh ${{ matrix.build_type }} whillats
+        
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: webrtc-linux-${{ matrix.build_type }}
+        path: |
+          src/out/${{ matrix.build_type }}/directcall
+          src/out/${{ matrix.build_type }}/*.so
+        retention-days: 7
+
+  build-macos:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        build_type: [debug, release]
+        
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        submodules: recursive
+        
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+        
+    - name: Install depot_tools
+      run: |
+        git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git $HOME/depot_tools
+        echo "$HOME/depot_tools" >> $GITHUB_PATH
+        
+    - name: Install system dependencies
+      run: |
+        brew install ninja pkg-config
+        
+    - name: Cache WebRTC source
+      uses: actions/cache@v3
+      with:
+        path: |
+          src
+          .gclient
+          .gclient_entries
+        key: webrtc-src-${{ runner.os }}-${{ hashFiles('DEPS') }}
+        restore-keys: |
+          webrtc-src-${{ runner.os }}-
+          
+    - name: Build WebRTC
+      run: |
+        chmod +x build.sh
+        ./build.sh ${{ matrix.build_type }} whillats
+        
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: webrtc-macos-${{ matrix.build_type }}
+        path: |
+          src/out/${{ matrix.build_type }}/directcall
+          src/out/${{ matrix.build_type }}/*.dylib
+        retention-days: 7
+
+  build-windows:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        build_type: [debug, release]
+        
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        submodules: recursive
+        
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+        
+    - name: Install depot_tools
+      run: |
+        git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git %USERPROFILE%\depot_tools
+        echo "%USERPROFILE%\depot_tools" >> %GITHUB_PATH%
+      shell: cmd
+      
+    - name: Install Visual Studio Build Tools
+      uses: microsoft/setup-msbuild@v1.3
+      
+    - name: Cache WebRTC source
+      uses: actions/cache@v3
+      with:
+        path: |
+          src
+          .gclient
+          .gclient_entries
+        key: webrtc-src-${{ runner.os }}-${{ hashFiles('DEPS') }}
+        restore-keys: |
+          webrtc-src-${{ runner.os }}-
+          
+    - name: Build WebRTC (Windows)
+      run: |
+        # Note: Windows build script would need to be created separately
+        # For now, we'll use a simplified approach
+        python3 tools/clang/scripts/update.py
+        cd src
+        gn gen out/${{ matrix.build_type }} --args="is_debug=${{ matrix.build_type == 'debug' && 'true' || 'false' }} rtc_include_opus=true rtc_enable_symbol_export=true rtc_build_examples=true"
+        ninja -C out/${{ matrix.build_type }} directcall
+      shell: bash
+      
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: webrtc-windows-${{ matrix.build_type }}
+        path: |
+          src/out/${{ matrix.build_type }}/directcall.exe
+          src/out/${{ matrix.build_type }}/*.dll
+        retention-days: 7
