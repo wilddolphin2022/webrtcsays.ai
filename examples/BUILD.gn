@@ -1148,8 +1148,9 @@ if (!build_with_chromium) {
           } else {
             whillats_subdir = "release"
           }
-          lib_dirs = [ "../modules/third_party/whillats/build/lib/" + whillats_subdir ]
-          libs = [ "whillats" ]
+          # Link directly to the dylib to avoid -l resolution issues
+          if (!defined(ldflags)) { ldflags = [] }
+          ldflags += [ rebase_path("//modules/third_party/whillats/build/lib/" + whillats_subdir + "/libwhillats.dylib", root_build_dir) ]
         } else if (is_linux) {
           if (is_debug) {
             whillats_subdir = "debug"
@@ -1225,7 +1226,7 @@ if (!build_with_chromium) {
     }
 
     # Restore speech device libs/ldflags if needed (primarily for non-iOS)
-    if(!is_ios && rtc_use_speech_audio_devices) {
+      if(!is_ios && rtc_use_speech_audio_devices) {
       if(is_mac) {
         frameworks = [ "CoreAudio.framework" ] # System framework
         if (is_debug) {
@@ -1234,6 +1235,9 @@ if (!build_with_chromium) {
           whillats_subdir = "release"
         }
         ldflags += [ "-Wl,-rpath,@loader_path/../../modules/third_party/whillats/build/lib/" + whillats_subdir ]
+        # Link the dylib explicitly to satisfy the linker
+        if (!defined(ldflags)) { ldflags = [] }
+        ldflags += [ rebase_path("//modules/third_party/whillats/build/lib/" + whillats_subdir + "/libwhillats.dylib", root_build_dir) ]
       } else if (is_linux) {
           if (is_debug) {
             whillats_subdir = "debug"
