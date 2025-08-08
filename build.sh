@@ -6,6 +6,7 @@ set -e
 # Always set repo root ONCE at the top
 REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+WHILLATS_DIR="$REPO_ROOT/src/modules/third_party/whillats"
 
 # Clean up old directories if they exist, but keep src
 echo "Cleaning up old directories..."
@@ -330,17 +331,19 @@ if [ $# -ge 1 ]; then
     fi
 fi
 if [ $# -ge 2 ]; then
-    if [[ "$2" == "whillats" || "$2" == "enable_whillats" ]]; then
+    if [[ "$2" == "whillats" ]]; then
         ENABLE_WHILLATS="true"
         echo "Whillats option enabled: building whillats..."
         if [ "$IOS_BUILD" = "true" ]; then
             echo "Building whillats for iOS..."
             if [ ! -d "$WHILLATS_DIR" ] || [ -z "$(ls -A "$WHILLATS_DIR" 2>/dev/null)" ]; then
                 echo "Initializing parent submodule: modules/third_party/whillats"
-                git submodule update --init modules/third_party/whillats
-            fi            
-
-            (cd "$REPO_ROOT/src/modules/third_party/whillats" && make ios)
+                git submodule update --init --recursive modules/third_party/whillats
+            else
+                echo "Updating submodule: modules/third_party/whillats"
+                git submodule update --recursive --remote modules/third_party/whillats || true
+            fi
+            (cd "$WHILLATS_DIR" && make ios)
         fi
     fi
 fi
