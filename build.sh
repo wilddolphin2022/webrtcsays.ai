@@ -317,11 +317,15 @@ build_whillats() {
 # Parse script parameters
 BUILD_TYPE="debug"
 ENABLE_WHILLATS="false"
+IOS_BUILD="false"
 if [ $# -ge 1 ]; then
     if [[ "$1" == "debug" || "$1" == "release" ]]; then
         BUILD_TYPE="$1"
+    elif [[ "$1" == "ios" ]]; then
+        IOS_BUILD="true"
+        BUILD_TYPE="debug"  # Default to debug for iOS, can be overridden
     else
-        echo "Unknown build type: $1. Use 'debug' or 'release'."
+        echo "Unknown build type: $1. Use 'debug', 'release', or 'ios'."
         exit 1
     fi
 fi
@@ -329,7 +333,12 @@ if [ $# -ge 2 ]; then
     if [[ "$2" == "whillats" || "$2" == "enable_whillats" ]]; then
         ENABLE_WHILLATS="true"
         echo "Whillats option enabled: running build_whillats..."
-        build_whillats "$BUILD_TYPE"
+        if [ "$IOS_BUILD" = "true" ]; then
+            echo "Building whillats for iOS..."
+            (cd "$REPO_ROOT/src/modules/third_party/whillats" && make ios)
+        else
+            build_whillats "$BUILD_TYPE"
+        fi
     fi
 fi
 
@@ -341,7 +350,10 @@ else
 fi
 
 # Set binary path and build dir based on build type and SRC_DIR
-if [ "$BUILD_TYPE" = "debug" ]; then
+if [ "$IOS_BUILD" = "true" ]; then
+    BINARY_PATH="$SRC_DIR/out/ios_arm64/examples/directcall"
+    BUILD_DIR="$SRC_DIR/out/ios_arm64"
+elif [ "$BUILD_TYPE" = "debug" ]; then
     BINARY_PATH="$SRC_DIR/out/debug/directcall"
     BUILD_DIR="$SRC_DIR/out/debug"
 else
@@ -381,26 +393,27 @@ else
     echo "Binary at $BINARY_PATH does not exist or is not executable. Skipping cleanup of other directories."
 fi
 
-# Parse script parameters
-BUILD_TYPE="debug"
-ENABLE_WHILLATS="false"
-if [ $# -ge 1 ]; then
-    if [[ "$1" == "debug" || "$1" == "release" ]]; then
-        BUILD_TYPE="$1"
+if [ "$IOS_BUILD" = "true" ]; then
+    echo "Building WebRTC project for iOS (whillats: $ENABLE_WHILLATS)..."
+    # iOS-specific build configuration
+    IOS_ARGS="target_environment=\"device\" target_os=\"ios\" target_cpu=\"arm64\" ios_deployment_target=\"16.4.0\" is_debug=true rtc_include_opus=true rtc_build_examples=true rtc_enable_symbol_export=true mac_deployment_target=\"15.0\" mac_min_system_version=\"15.0\""
+    if [ "$ENABLE_WHILLATS" = "true" ]; then
+        IOS_ARGS="$IOS_ARGS rtc_use_speech_audio_devices=true"
     else
-        echo "Unknown build type: $1. Use 'debug' or 'release'."
-        exit 1
+        IOS_ARGS="$IOS_ARGS rtc_use_speech_audio_devices=false"
     fi
-fi
-if [ $# -ge 2 ]; then
-    if [[ "$2" == "whillats" || "$2" == "enable_whillats" ]]; then
-        ENABLE_WHILLATS="true"
-        echo "Whillats option enabled: running build_whillats..."
-        build_whillats "$BUILD_TYPE"
-    fi
-fi
-
-if [ "$BUILD_TYPE" = "debug" ]; then
+    
+    echo "Generating iOS build configuration..."
+    (cd $SRC_DIR && gn gen out/ios_arm64 --args="$IOS_ARGS")
+    
+    echo "Building WebRTC framework and directcall for iOS..."
+    (cd $SRC_DIR && ninja -C out/ios_arm64 examples:directcall)
+    echo "iOS build completed."
+    
+    # Update binary path for iOS
+    BINARY_PATH="$SRC_DIR/out/ios_arm64/examples/directcall"
+    
+elif [ "$BUILD_TYPE" = "debug" ]; then
     echo "Building WebRTC project (debug, whillats: $ENABLE_WHILLATS)..."
     (cd $SRC_DIR && gn gen out/debug --args="is_debug=true rtc_include_opus=true rtc_enable_symbol_export=true rtc_build_examples=true rtc_use_speech_audio_devices=$ENABLE_WHILLATS $EXTRA_ARGS")
     (cd $SRC_DIR && ninja -C out/$BUILD_TYPE directcall)
@@ -422,13 +435,27 @@ else
     openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -sha256 -days 3650 -nodes -subj "/C=US/ST=CA/L=SanFrancisco/O=Acme/OU=Development/CN=WebRTCsays.ai"    
 fi
 
-LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$REPO_ROOT/src/modules/third_party/whillats/build/lib/$BUILD_TYPE"
-if [ "$ENABLE_WHILLATS" = "true" ]; then
+if [ "$IOS_BUILD" = "true" ]; then
+    echo "iOS build completed successfully!"
+    echo "iOS binary location: $BINARY_PATH"
+    echo "Note: iOS binaries cannot be executed directly on macOS."
+    echo "To deploy to iOS device or simulator, use Xcode or appropriate iOS deployment tools."
+    if [ -f "$BINARY_PATH" ]; then
+        echo "✅ iOS binary exists and is ready for deployment"
+        ls -la "$BINARY_PATH"
+    else
+        echo "❌ iOS binary not found at expected location"
+    fi
+else
+    # Regular macOS/Linux binary execution
     LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$REPO_ROOT/src/modules/third_party/whillats/build/lib/$BUILD_TYPE"
-fi
+    if [ "$ENABLE_WHILLATS" = "true" ]; then
+        LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$REPO_ROOT/src/modules/third_party/whillats/build/lib/$BUILD_TYPE"
+    fi
 
-echo "Running binary as LD_LIBRARY_PATH=$LD_LIBRARY_PATH $BINARY_PATH to show help..."
-LD_LIBRARY_PATH=$LD_LIBRARY_PATH $BINARY_PATH --help
+    echo "Running binary as LD_LIBRARY_PATH=$LD_LIBRARY_PATH $BINARY_PATH to show help..."
+    LD_LIBRARY_PATH=$LD_LIBRARY_PATH $BINARY_PATH --help
+fi
 
 #echo "Running binary in callee mode to test signaling..."    
 #$BINARY_PATH --mode=callee  --webrtc_cert_path=cert.pem  --webrtc_key_path=key.pem --user_name=Slim 3.93.50.189:3456

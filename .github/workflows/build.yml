@@ -112,6 +112,62 @@ jobs:
           src/out/${{ matrix.build_type }}/*.dylib
         retention-days: 7
 
+  build-ios:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        build_type: [ios]
+        
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        submodules: recursive
+        
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+        
+    - name: Install depot_tools
+      run: |
+        git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git $HOME/depot_tools
+        echo "$HOME/depot_tools" >> $GITHUB_PATH
+        
+    - name: Install Xcode Command Line Tools
+      run: |
+        sudo xcode-select --install || true
+        
+    - name: Install system dependencies
+      run: |
+        brew install ninja pkg-config
+        
+    - name: Cache WebRTC source
+      uses: actions/cache@v3
+      with:
+        path: |
+          src
+          .gclient
+          .gclient_entries
+        key: webrtc-src-ios-${{ hashFiles('DEPS') }}
+        restore-keys: |
+          webrtc-src-ios-
+          
+    - name: Build WebRTC for iOS
+      run: |
+        chmod +x build.sh
+        ./build.sh ${{ matrix.build_type }} whillats
+        
+    - name: Upload iOS build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: webrtc-ios-${{ matrix.build_type }}
+        path: |
+          src/out/ios_arm64/examples/directcall
+          src/out/ios_arm64/*.framework
+        retention-days: 7
+
   build-windows:
     runs-on: windows-latest
     strategy:
