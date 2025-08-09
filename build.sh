@@ -436,20 +436,18 @@ else
     echo "Release build completed."
 fi
 
-# After building whillats for iOS, ensure the framework is available in the expected linker search path
+# Clean up previous iOS build artifacts before starting
+if [ "$IOS_BUILD" = "true" ]; then
+    echo "Cleaning previous iOS build directories..."
+    rm -rf "$WHILLATS_DIR/build-ios" "$SRC_DIR/out/ios_arm64"
+fi
+
+# After building whillats for iOS, symlink framework to expected linker path
 if [ "$IOS_BUILD" = "true" ] && [ "$ENABLE_WHILLATS" = "true" ]; then
     WHILLATS_FRAMEWORK_SRC="$WHILLATS_DIR/build-ios/lib/Debug/whillats.framework"
     WHILLATS_FRAMEWORK_DST="$WHILLATS_DIR/build-ios/bin/debug/whillats.framework"
     mkdir -p "$(dirname "$WHILLATS_FRAMEWORK_DST")"
-    if [ -d "$WHILLATS_FRAMEWORK_SRC" ]; then
-        if [ -L "$WHILLATS_FRAMEWORK_DST" ] || [ -e "$WHILLATS_FRAMEWORK_DST" ]; then
-            rm -rf "$WHILLATS_FRAMEWORK_DST"
-        fi
-        ln -s "$WHILLATS_FRAMEWORK_SRC" "$WHILLATS_FRAMEWORK_DST"
-        echo "Symlinked whillats.framework to expected linker path: $WHILLATS_FRAMEWORK_DST"
-    else
-        echo "Warning: whillats.framework not found at $WHILLATS_FRAMEWORK_SRC"
-    fi
+    [ -d "$WHILLATS_FRAMEWORK_SRC" ] && rm -rf "$WHILLATS_FRAMEWORK_DST" && ln -s "$WHILLATS_FRAMEWORK_SRC" "$WHILLATS_FRAMEWORK_DST" && echo "Symlinked whillats.framework to $WHILLATS_FRAMEWORK_DST" || echo "Warning: Failed to symlink whillats.framework"
 fi
 
 # Store the current commit hash as the last built commit
