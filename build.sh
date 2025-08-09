@@ -337,9 +337,10 @@ if [ $# -ge 2 ]; then
                 echo "Initializing parent submodule: modules/third_party/whillats"
                 git submodule update --init modules/third_party/whillats
                 pushd .
+                echo "pwd: $PWD"
                 cd $SRC_DIR//modules/third_party/whillats
-                git checkout ${WHISPER_TAG}
-                git pull origin ${WHISPER_TAG}
+                echo "git pull origin ${WHISPER_TAG}"
+                echo "git checkout ${WHISPER_TAG}"
                 popd
             else
                 echo "Submodule exists; skipping update to preserve local edits."
