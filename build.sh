@@ -305,6 +305,13 @@ build_whillats() {
     echo "[build-whillats] Whisper/Llama/TTS build completed."
 }
 
+# Dynamically detect src directory
+if [ -d "src" ]; then
+    SRC_DIR="src"
+else
+    SRC_DIR="."
+fi
+
 # Parse script parameters
 BUILD_TYPE="debug"
 ENABLE_WHILLATS="false"
@@ -330,7 +337,7 @@ if [ $# -ge 2 ]; then
                 echo "Initializing parent submodule: modules/third_party/whillats"
                 git submodule update --init modules/third_party/whillats
                 pushd .
-                cd src/modules/third_party/whillats
+                cd $SRC_DIR//modules/third_party/whillats
                 git checkout ${WHISPER_TAG}
                 git pull origin ${WHISPER_TAG}
                 popd
@@ -350,13 +357,6 @@ if [ $# -ge 2 ]; then
             build_whillats "$BUILD_TYPE"
         fi
     fi
-fi
-
-# Dynamically detect src directory
-if [ -d "src" ]; then
-    SRC_DIR="src"
-else
-    SRC_DIR="."
 fi
 
 # Set binary path and build dir based on build type and SRC_DIR
