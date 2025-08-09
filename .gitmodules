@@ -1,4 +1,4 @@
-[submodule "src/modules/third_party/whillats"]
-	path = src/modules/third_party/whillats
+[submodule "modules/third_party/whillats"]
+	path = modules/third_party/whillats
 	url = https://github.com/wilddolphin2022/whillats
 	branch = develop
