@@ -339,8 +339,8 @@ if [ $# -ge 2 ]; then
                 pushd .
                 echo "pwd: $PWD"
                 cd $SRC_DIR/modules/third_party/whillats
-                git fetch origin ${WHISPER_TAG}
-                git checkout ${WHISPER_TAG}
+                git fetch origin ${CURRENT_BRANCH}
+                git checkout ${CURRENT_BRANCH}
                 popd
             else
                 echo "Submodule exists; skipping update to preserve local edits."
