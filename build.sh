@@ -330,7 +330,7 @@ if [ $# -ge 2 ]; then
                 echo "Initializing parent submodule: modules/third_party/whillats"
                 git submodule update --init modules/third_party/whillats
                 pushd .
-                cd modules/third_party/whillats
+                cd src/modules/third_party/whillats
                 git checkout ${WHISPER_TAG}
                 git pull origin ${WHISPER_TAG}
                 popd
