@@ -335,13 +335,13 @@ if [ $# -ge 2 ]; then
             echo "Building whillats for iOS..."
             if [ ! -d "$WHILLATS_DIR" ] || [ -z "$(ls -A "$WHILLATS_DIR" 2>/dev/null)" ]; then
                 echo "Initializing parent submodule: modules/third_party/whillats"
-                git submodule update --init modules/third_party/whillats
                 pushd .
                 echo "pwd: $PWD"
                 cd $SRC_DIR/modules/third_party/whillats
                 git fetch origin ${CURRENT_BRANCH}
                 git checkout ${CURRENT_BRANCH}
                 popd
+                git submodule update --init  --recursive  $SRC_DIR/modules/third_party/whillats
             else
                 echo "Submodule exists; skipping update to preserve local edits."
             fi
