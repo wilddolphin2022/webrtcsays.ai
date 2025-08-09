@@ -436,6 +436,22 @@ else
     echo "Release build completed."
 fi
 
+# After building whillats for iOS, ensure the framework is available in the expected linker search path
+if [ "$IOS_BUILD" = "true" ] && [ "$ENABLE_WHILLATS" = "true" ]; then
+    WHILLATS_FRAMEWORK_SRC="$WHILLATS_DIR/build-ios/lib/Debug/whillats.framework"
+    WHILLATS_FRAMEWORK_DST="$WHILLATS_DIR/build-ios/bin/debug/whillats.framework"
+    mkdir -p "$(dirname "$WHILLATS_FRAMEWORK_DST")"
+    if [ -d "$WHILLATS_FRAMEWORK_SRC" ]; then
+        if [ -L "$WHILLATS_FRAMEWORK_DST" ] || [ -e "$WHILLATS_FRAMEWORK_DST" ]; then
+            rm -rf "$WHILLATS_FRAMEWORK_DST"
+        fi
+        ln -s "$WHILLATS_FRAMEWORK_SRC" "$WHILLATS_FRAMEWORK_DST"
+        echo "Symlinked whillats.framework to expected linker path: $WHILLATS_FRAMEWORK_DST"
+    else
+        echo "Warning: whillats.framework not found at $WHILLATS_FRAMEWORK_SRC"
+    fi
+fi
+
 # Store the current commit hash as the last built commit
 echo "$CURRENT_COMMIT" > ../$LAST_BUILD_COMMIT_FILE
 
