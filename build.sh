@@ -93,6 +93,11 @@ else
         echo "ERROR: src/build directory missing or dotfile_settings.gni missing after gclient sync. Check your DEPS file or sync process."
         exit 1
     fi
+
+    rm -rf ./api ./audio ./build_overrides ./call ./common_audio ./common_video ./data ./docs 
+    rm -rf ./examples ./experiments ./g3doc ./infra ./logging ./media ./modules ./net ./p2p 
+    rm -rf ./pc ./resource ./rtc-base ./rtc-tools ./sdk ./stats ./system-wrappers ./test 
+    rm -rf ./tools ./tools_webrtc ./video 
 fi
 
 # Copy .vpython3 to src directory
@@ -371,53 +376,101 @@ if [ $# -ge 1 ]; then
         IOS_BUILD="true"
         BUILD_TYPE="debug"  # Default to debug for iOS, can be overridden
     else
-        echo "Unknown build type: $1. Use 'debug', 'release', or 'ios'."
+        echo "Usage: $0 [build_type] [options]"
+        echo ""
+        echo "Build types:"
+        echo "  debug       Build debug version for host platform"
+        echo "  release     Build release version for host platform" 
+        echo "  ios         Build for iOS (default: debug)"
+        echo ""
+        echo "Options:"
+        echo "  whillats    Enable whillats speech/AI features"
+        echo ""
+        echo "iOS-specific usage:"
+        echo "  $0 ios [debug|release] [whillats]"
+        echo ""
+        echo "Examples:"
+        echo "  $0 debug whillats           # Host debug with whillats"
+        echo "  $0 release whillats         # Host release with whillats"
+        echo "  $0 ios whillats             # iOS debug with whillats"
+        echo "  $0 ios debug whillats       # iOS debug with whillats"
+        echo "  $0 ios release whillats     # iOS release with whillats"
         exit 1
     fi
 fi
 if [ $# -ge 2 ]; then
     if [[ "$2" == "whillats" ]]; then
         ENABLE_WHILLATS="true"
-        # Clean up previous iOS build artifacts before building whillats
-        if [ "$IOS_BUILD" = "true" ]; then
-            echo "Cleaning previous iOS build directories..."
-            rm -rf "$WHILLATS_DIR/build-ios" "$SRC_DIR/out/ios_arm64"
+    elif [[ "$2" == "debug" || "$2" == "release" ]] && [[ "$IOS_BUILD" == "true" ]]; then
+        # Second parameter can override build type for iOS builds
+        BUILD_TYPE="$2"
+    fi
+fi
+if [ $# -ge 3 ]; then
+    if [[ "$3" == "whillats" ]] && [[ "$IOS_BUILD" == "true" ]]; then
+        ENABLE_WHILLATS="true"
+    fi
+fi
+
+# Handle whillats building
+if [[ "$ENABLE_WHILLATS" == "true" ]]; then
+    # Clean up previous iOS build artifacts before building whillats
+    if [ "$IOS_BUILD" = "true" ]; then
+        echo "Cleaning previous iOS build directories..."
+        rm -rf "$WHILLATS_DIR/build-ios" "$SRC_DIR/out/ios_arm64"
+    fi
+    echo "Whillats option enabled: building whillats..."
+    if [ "$IOS_BUILD" = "true" ]; then
+        echo "Building whillats for iOS ($BUILD_TYPE)..."
+        if [ ! -d "$WHILLATS_DIR" ] || [ -z "$(ls -A "$WHILLATS_DIR" 2>/dev/null)" ]; then
+            echo "Initializing parent submodule: modules/third_party/whillats"
+            pushd .
+            echo "pwd: $PWD"
+            cd $SRC_DIR/modules/third_party/whillats
+            git fetch origin ${CURRENT_BRANCH}
+            git checkout ${CURRENT_BRANCH}
+            popd
+            git submodule update --init --recursive modules/third_party/whillats
+        else
+            echo "Submodule exists; skipping update to preserve local edits."
         fi
-        echo "Whillats option enabled: building whillats..."
-        if [ "$IOS_BUILD" = "true" ]; then
-            echo "Building whillats for iOS..."
-            if [ ! -d "$WHILLATS_DIR" ] || [ -z "$(ls -A "$WHILLATS_DIR" 2>/dev/null)" ]; then
-                echo "Initializing parent submodule: modules/third_party/whillats"
-                pushd .
-                echo "pwd: $PWD"
-                cd $SRC_DIR/modules/third_party/whillats
-                git fetch origin ${CURRENT_BRANCH}
-                git checkout ${CURRENT_BRANCH}
-                popd
-                git submodule update --init --recursive modules/third_party/whillats
-            else
-                echo "Submodule exists; skipping update to preserve local edits."
-            fi
+        
+        # Build iOS whillats with the specified build type
+        if [ "$BUILD_TYPE" = "debug" ]; then
+            (cd "$WHILLATS_DIR" && make ios-debug)
+            WHILLATS_BUILD_DIR="Debug"
+        else
             (cd "$WHILLATS_DIR" && make ios)
-            # Verify framework was built
-            if [ -d "$WHILLATS_DIR/build-ios/lib/Debug/whillats.framework" ]; then
-                echo "✅ whillats.framework built successfully"
-                ls -la "$WHILLATS_DIR/build-ios/lib/Debug/whillats.framework/"
-            else
-                echo "❌ whillats.framework build failed"
-                exit 1
+            WHILLATS_BUILD_DIR="Release"
+        fi
+        
+        # Verify framework was built (check both lib and normalized bin directories)
+        if [ -d "$WHILLATS_DIR/build-ios/lib/$WHILLATS_BUILD_DIR/whillats.framework" ] || [ -d "$WHILLATS_DIR/build-ios/bin/${BUILD_TYPE}/whillats.framework" ]; then
+            echo "✅ whillats.framework ($BUILD_TYPE) built successfully"
+            # Show where the framework was found
+            if [ -d "$WHILLATS_DIR/build-ios/lib/$WHILLATS_BUILD_DIR/whillats.framework" ]; then
+                ls -la "$WHILLATS_DIR/build-ios/lib/$WHILLATS_BUILD_DIR/whillats.framework/"
+            fi
+            if [ -d "$WHILLATS_DIR/build-ios/bin/${BUILD_TYPE}/whillats.framework" ]; then
+                ls -la "$WHILLATS_DIR/build-ios/bin/${BUILD_TYPE}/whillats.framework/"
             fi
         else
-            echo "Building whillats for host platform ($BUILD_TYPE)..."
-            if [ ! -d "$WHILLATS_DIR" ] || [ -z "$(ls -A "$WHILLATS_DIR" 2>/dev/null)" ]; then
-                echo "Initializing parent submodule: modules/third_party/whillats"
-                git submodule update --init --recursive modules/third_party/whillats
-            else
-                echo "Updating submodule: modules/third_party/whillats"
-                git submodule update --recursive --remote modules/third_party/whillats || true
-            fi
-            build_whillats "$BUILD_TYPE"
+            echo "❌ whillats.framework ($BUILD_TYPE) build failed"
+            echo "Checked locations:"
+            echo "  - $WHILLATS_DIR/build-ios/lib/$WHILLATS_BUILD_DIR/whillats.framework"
+            echo "  - $WHILLATS_DIR/build-ios/bin/${BUILD_TYPE}/whillats.framework"
+            exit 1
         fi
+    else
+        echo "Building whillats for host platform ($BUILD_TYPE)..."
+        if [ ! -d "$WHILLATS_DIR" ] || [ -z "$(ls -A "$WHILLATS_DIR" 2>/dev/null)" ]; then
+            echo "Initializing parent submodule: modules/third_party/whillats"
+            git submodule update --init --recursive modules/third_party/whillats
+        else
+            echo "Updating submodule: modules/third_party/whillats"
+            git submodule update --recursive --remote modules/third_party/whillats || true
+        fi
+        build_whillats "$BUILD_TYPE"
     fi
 fi
 
@@ -468,7 +521,12 @@ fi
 if [ "$IOS_BUILD" = "true" ]; then
     echo "Building WebRTC project for iOS (whillats: $ENABLE_WHILLATS)..."
     # iOS-specific build configuration
-    IOS_ARGS="target_environment=\"device\" target_os=\"ios\" target_cpu=\"arm64\" ios_deployment_target=\"16.4.0\" is_debug=true rtc_include_opus=true rtc_build_examples=true rtc_enable_symbol_export=true mac_deployment_target=\"15.0\" mac_min_system_version=\"15.0\""
+    if [ "$BUILD_TYPE" = "debug" ]; then
+        IOS_DEBUG_FLAG="true"
+    else
+        IOS_DEBUG_FLAG="false"
+    fi
+    IOS_ARGS="target_environment=\"device\" target_os=\"ios\" target_cpu=\"arm64\" ios_deployment_target=\"16.4.0\" is_debug=$IOS_DEBUG_FLAG rtc_include_opus=true rtc_build_examples=true rtc_enable_symbol_export=true mac_deployment_target=\"15.0\" mac_min_system_version=\"15.0\""
     if [ "$ENABLE_WHILLATS" = "true" ]; then
         IOS_ARGS="$IOS_ARGS rtc_use_speech_audio_devices=true"
     else
@@ -480,10 +538,17 @@ if [ "$IOS_BUILD" = "true" ]; then
     
     # Ensure whillats framework is available before WebRTC build if enabled
     if [ "$ENABLE_WHILLATS" = "true" ]; then
-        WHILLATS_FRAMEWORK_SRC="$WHILLATS_DIR/build-ios/lib/Debug/whillats.framework"
+        # Use the normalized framework location (the Makefile copies it to bin/debug or bin/release)
+        WHILLATS_FRAMEWORK_SRC="$WHILLATS_DIR/build-ios/bin/${BUILD_TYPE}/whillats.framework"
         WHILLATS_FRAMEWORK_DST="$WHILLATS_DIR/build-ios/bin/debug/whillats.framework"
-        mkdir -p "$(dirname "$WHILLATS_FRAMEWORK_DST")"
-        [ -d "$WHILLATS_FRAMEWORK_SRC" ] && ln -sfn "$WHILLATS_FRAMEWORK_SRC" "$WHILLATS_FRAMEWORK_DST" && echo "Pre-linked whillats.framework for WebRTC build" || echo "Warning: whillats.framework not found at $WHILLATS_FRAMEWORK_SRC"
+        
+        # Create symlink only if we're building release mode (debug already has the framework in the right place)
+        if [ "$BUILD_TYPE" = "release" ]; then
+            mkdir -p "$(dirname "$WHILLATS_FRAMEWORK_DST")"
+            [ -d "$WHILLATS_FRAMEWORK_SRC" ] && ln -sfn "$WHILLATS_FRAMEWORK_SRC" "$WHILLATS_FRAMEWORK_DST" && echo "Pre-linked whillats.framework ($BUILD_TYPE) for WebRTC build" || echo "Warning: whillats.framework not found at $WHILLATS_FRAMEWORK_SRC"
+        else
+            echo "Using whillats.framework directly from bin/debug (no symlink needed)"
+        fi
     fi
     
     echo "Building WebRTC framework and directcall for iOS (single job to avoid toolchain races)..."
