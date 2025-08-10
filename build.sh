@@ -330,6 +330,11 @@ fi
 if [ $# -ge 2 ]; then
     if [[ "$2" == "whillats" ]]; then
         ENABLE_WHILLATS="true"
+        # Clean up previous iOS build artifacts before building whillats
+        if [ "$IOS_BUILD" = "true" ]; then
+            echo "Cleaning previous iOS build directories..."
+            rm -rf "$WHILLATS_DIR/build-ios" "$SRC_DIR/out/ios_arm64"
+        fi
         echo "Whillats option enabled: building whillats..."
         if [ "$IOS_BUILD" = "true" ]; then
             echo "Building whillats for iOS..."
@@ -341,11 +346,19 @@ if [ $# -ge 2 ]; then
                 git fetch origin ${CURRENT_BRANCH}
                 git checkout ${CURRENT_BRANCH}
                 popd
-                git submodule update --init  --recursive  $SRC_DIR/modules/third_party/whillats
+                git submodule update --init --recursive modules/third_party/whillats
             else
                 echo "Submodule exists; skipping update to preserve local edits."
             fi
             (cd "$WHILLATS_DIR" && make ios)
+            # Verify framework was built
+            if [ -d "$WHILLATS_DIR/build-ios/lib/Debug/whillats.framework" ]; then
+                echo "✅ whillats.framework built successfully"
+                ls -la "$WHILLATS_DIR/build-ios/lib/Debug/whillats.framework/"
+            else
+                echo "❌ whillats.framework build failed"
+                exit 1
+            fi
         else
             echo "Building whillats for host platform ($BUILD_TYPE)..."
             if [ ! -d "$WHILLATS_DIR" ] || [ -z "$(ls -A "$WHILLATS_DIR" 2>/dev/null)" ]; then
@@ -417,6 +430,14 @@ if [ "$IOS_BUILD" = "true" ]; then
     echo "Generating iOS build configuration..."
     (cd $SRC_DIR && gn gen out/ios_arm64 --args="$IOS_ARGS")
     
+    # Ensure whillats framework is available before WebRTC build if enabled
+    if [ "$ENABLE_WHILLATS" = "true" ]; then
+        WHILLATS_FRAMEWORK_SRC="$WHILLATS_DIR/build-ios/lib/Debug/whillats.framework"
+        WHILLATS_FRAMEWORK_DST="$WHILLATS_DIR/build-ios/bin/debug/whillats.framework"
+        mkdir -p "$(dirname "$WHILLATS_FRAMEWORK_DST")"
+        [ -d "$WHILLATS_FRAMEWORK_SRC" ] && ln -sfn "$WHILLATS_FRAMEWORK_SRC" "$WHILLATS_FRAMEWORK_DST" && echo "Pre-linked whillats.framework for WebRTC build" || echo "Warning: whillats.framework not found at $WHILLATS_FRAMEWORK_SRC"
+    fi
+    
     echo "Building WebRTC framework and directcall for iOS (single job to avoid toolchain races)..."
     (cd $SRC_DIR && ninja -C out/ios_arm64 -j1 directcall)
     echo "iOS build completed."
@@ -436,19 +457,7 @@ else
     echo "Release build completed."
 fi
 
-# Clean up previous iOS build artifacts before starting
-if [ "$IOS_BUILD" = "true" ]; then
-    echo "Cleaning previous iOS build directories..."
-    rm -rf "$WHILLATS_DIR/build-ios" "$SRC_DIR/out/ios_arm64"
-fi
 
-# After building whillats for iOS, symlink framework to expected linker path
-if [ "$IOS_BUILD" = "true" ] && [ "$ENABLE_WHILLATS" = "true" ]; then
-    WHILLATS_FRAMEWORK_SRC="$WHILLATS_DIR/build-ios/lib/Debug/whillats.framework"
-    WHILLATS_FRAMEWORK_DST="$WHILLATS_DIR/build-ios/bin/debug/whillats.framework"
-    mkdir -p "$(dirname "$WHILLATS_FRAMEWORK_DST")"
-    [ -d "$WHILLATS_FRAMEWORK_SRC" ] && rm -rf "$WHILLATS_FRAMEWORK_DST" && ln -s "$WHILLATS_FRAMEWORK_SRC" "$WHILLATS_FRAMEWORK_DST" && echo "Symlinked whillats.framework to $WHILLATS_FRAMEWORK_DST" || echo "Warning: Failed to symlink whillats.framework"
-fi
 
 # Store the current commit hash as the last built commit
 echo "$CURRENT_COMMIT" > ../$LAST_BUILD_COMMIT_FILE
