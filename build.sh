@@ -55,15 +55,24 @@ else
     echo "Warning: depot_tools may have compatibility issues with Python 3.13+"
 fi
 
-if [ -d "$HOME/depot_tools" ]; then
+# Check if depot_tools is already available in PATH
+if command -v gclient >/dev/null 2>&1; then
+    echo "depot_tools already available in PATH"
+elif [ -d "$HOME/depot_tools" ]; then
     PATH="$HOME/depot_tools:$PATH"
     echo "Added $HOME/depot_tools to PATH (prepended)"
+elif [ -d "$HOME/Public/depot_tools" ]; then
+    PATH="$HOME/Public/depot_tools:$PATH"
+    echo "Added $HOME/Public/depot_tools to PATH (prepended)"
 else
-    if [ -d "$HOME/Public/depot_tools" ]; then
-        PATH="$HOME/Public/depot_tools:$PATH"
-        echo "Added $HOME/Public/depot_tools to PATH (prepended)"
+    echo "depot_tools not found in PATH or expected directories."
+    echo "Attempting to install depot_tools..."
+    git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git "$HOME/depot_tools"
+    if [ $? -eq 0 ]; then
+        PATH="$HOME/depot_tools:$PATH"
+        echo "Successfully installed and added depot_tools to PATH"
     else
-        echo "$HOME/Public/depot_tools not found. Please install depot_tools manually."
+        echo "ERROR: Failed to install depot_tools. Please install depot_tools manually."
         exit 1
     fi
 fi
