@@ -78,14 +78,19 @@ else
 fi
 
 
-# Check if src directory exists and is initialized
-if [ -d "src" ] && [ -d "src/build" ] && [ -f "src/.git/HEAD" ]; then
-    echo "Skipping gclient sync as src directory already exists and appears initialized."
+# Check if src directory exists and is initialized properly
+if [ -d "src" ] && [ -d "src/build" ] && [ -f "src/.git/HEAD" ] && [ -f "src/build/dotfile_settings.gni" ]; then
+    echo "Skipping gclient sync as src directory already exists and appears properly initialized."
 else
-    echo "Running gclient sync to initialize src directory..."
+    echo "Running gclient sync to initialize or fix src directory..."
+    # Force a clean sync if dotfile_settings.gni is missing
+    if [ -d "src" ] && [ ! -f "src/build/dotfile_settings.gni" ]; then
+        echo "Missing critical build files, forcing clean gclient sync..."
+        rm -rf src
+    fi
     gclient sync --nohooks --no-history --shallow
-    if [ ! -d "src/build" ]; then
-        echo "ERROR: src/build directory missing after gclient sync. Check your DEPS file or sync process."
+    if [ ! -d "src/build" ] || [ ! -f "src/build/dotfile_settings.gni" ]; then
+        echo "ERROR: src/build directory missing or dotfile_settings.gni missing after gclient sync. Check your DEPS file or sync process."
         exit 1
     fi
 fi
@@ -482,8 +487,18 @@ if [ "$IOS_BUILD" = "true" ]; then
     fi
     
     echo "Building WebRTC framework and directcall for iOS (single job to avoid toolchain races)..."
-    (cd $SRC_DIR && ninja -C out/ios_arm64 -j1 directcall)
+    # Build both the WebRTC framework and directcall binary
+    (cd $SRC_DIR && ninja -C out/ios_arm64 -j1 sdk:framework_objc directcall)
     echo "iOS build completed."
+    
+    # Verify both framework and binary were built
+    if [ -d "$SRC_DIR/out/ios_arm64/WebRTC.framework" ]; then
+        echo "✅ WebRTC.framework built successfully"
+        ls -la "$SRC_DIR/out/ios_arm64/WebRTC.framework/"
+    else
+        echo "❌ WebRTC.framework build failed"
+        exit 1
+    fi
     
     # Update binary path for iOS
     BINARY_PATH="$SRC_DIR/out/ios_arm64/directcall"
@@ -549,6 +564,7 @@ fi
 if [ "$IOS_BUILD" = "true" ]; then
     echo "iOS build completed successfully!"
     echo "iOS binary location: $BINARY_PATH"
+    echo "WebRTC framework location: $SRC_DIR/out/ios_arm64/WebRTC.framework"
     echo "Note: iOS binaries cannot be executed directly on macOS."
     echo "To deploy to iOS device or simulator, use Xcode or appropriate iOS deployment tools."
     if [ -f "$BINARY_PATH" ]; then
@@ -556,6 +572,13 @@ if [ "$IOS_BUILD" = "true" ]; then
         ls -la "$BINARY_PATH"
     else
         echo "❌ iOS binary not found at expected location"
+    fi
+    
+    if [ -d "$SRC_DIR/out/ios_arm64/WebRTC.framework" ]; then
+        echo "✅ WebRTC.framework ready for iOS app integration"
+        echo "Framework size: $(du -sh "$SRC_DIR/out/ios_arm64/WebRTC.framework" | cut -f1)"
+    else
+        echo "❌ WebRTC.framework not found at expected location"
     fi
 else
     # Regular macOS/Linux binary execution
