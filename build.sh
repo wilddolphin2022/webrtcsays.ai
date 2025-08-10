@@ -273,11 +273,45 @@ build_whillats() {
             CMAKE_CUDA_DISABLED="-DGGML_CUDA=OFF -DWHISPER_CUDA=OFF -DGGML_CUBLAS=OFF -DLLAMA_CUDA=OFF"
         fi
     fi
-    # Check available disk space before building
+    # Check available disk space and memory before building
     AVAILABLE_SPACE=$(df . | tail -1 | awk '{print $4}')
     echo "[build-whillats] Available disk space: ${AVAILABLE_SPACE}KB"
     if [ "$AVAILABLE_SPACE" -lt 10485760 ]; then  # Less than 10GB
         echo "[build-whillats] WARNING: Less than 10GB available disk space. Build may fail."
+    fi
+    
+    # Check available memory and adjust build strategy  
+    # Handle different environments (native vs containerized)
+    if [ -f "/.dockerenv" ] || [ -n "${GITHUB_ACTIONS}" ]; then
+        # In containerized environment, be more conservative with memory estimates
+        TOTAL_MEM=$(free -m | awk 'NR==2{printf "%.0f", $2}')
+        AVAILABLE_MEM=$(echo "$TOTAL_MEM * 0.6" | bc 2>/dev/null || echo "2000")
+        echo "[build-whillats] Container/CI environment detected"
+        echo "[build-whillats] Total memory: ${TOTAL_MEM}MB, Conservative available: ${AVAILABLE_MEM}MB"
+    else
+        AVAILABLE_MEM=$(free -m | awk 'NR==2{printf "%.0f", $7}')
+        echo "[build-whillats] Native environment, Available memory: ${AVAILABLE_MEM}MB"
+    fi
+    
+    # Set conservative compilation flags for memory-constrained environments
+    MEMORY_CONSERVATIVE_FLAGS=""
+    PARALLEL_JOBS=1
+    if [ "$AVAILABLE_MEM" -lt 2000 ]; then
+        echo "[build-whillats] Very low memory detected (<2GB), skipping whillats build to prevent OOM"
+        echo "[build-whillats] To build whillats, ensure at least 2GB of available memory"
+        popd
+        return 0
+    elif [ "$AVAILABLE_MEM" -lt 4000 ]; then
+        echo "[build-whillats] Low memory detected, using very conservative build settings"
+        MEMORY_CONSERVATIVE_FLAGS="-DCMAKE_CXX_FLAGS_RELEASE=-O1 -DCMAKE_C_FLAGS_RELEASE=-O1 -DCMAKE_CXX_FLAGS_DEBUG=-O0 -DCMAKE_C_FLAGS_DEBUG=-O0 -DWHISPER_NO_AVX=ON -DWHISPER_NO_AVX2=ON -DWHISPER_NO_FMA=ON -DWHISPER_NO_F16C=ON"
+        PARALLEL_JOBS=1
+    elif [ "$AVAILABLE_MEM" -lt 8000 ]; then
+        echo "[build-whillats] Medium memory detected, using moderate build settings"
+        MEMORY_CONSERVATIVE_FLAGS="-DCMAKE_CXX_FLAGS_RELEASE=-O2 -DCMAKE_C_FLAGS_RELEASE=-O2"
+        PARALLEL_JOBS=2
+    else
+        echo "[build-whillats] Sufficient memory detected, using standard build settings"
+        PARALLEL_JOBS=4
     fi
     
     # Clean any previous build to free space
@@ -294,21 +328,21 @@ build_whillats() {
     fi
     
     # Add timeout and verbose output for cmake
-    echo "[build-whillats] Starting CMake configuration with timeout..."
+    echo "[build-whillats] Starting CMake configuration with timeout and memory-conscious settings..."
     if [ "$BUILD_TYPE" = "debug" ]; then
-        timeout 600 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug $METAL_ARG $CMAKE_CUDA_DISABLED --fresh || {
+        timeout 600 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug $METAL_ARG $CMAKE_CUDA_DISABLED $MEMORY_CONSERVATIVE_FLAGS --fresh || {
             echo "[build-whillats] CMake configuration timed out or failed. Retrying with verbose output..."
-            cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug $METAL_ARG $CMAKE_CUDA_DISABLED --fresh -DCMAKE_VERBOSE_MAKEFILE=ON
+            cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug $METAL_ARG $CMAKE_CUDA_DISABLED $MEMORY_CONSERVATIVE_FLAGS --fresh -DCMAKE_VERBOSE_MAKEFILE=ON
         }
-        echo "[build-whillats] Starting build..."
-        cmake --build build --parallel 4 --verbose
+        echo "[build-whillats] Starting build with $PARALLEL_JOBS parallel jobs..."
+        cmake --build build --parallel $PARALLEL_JOBS
     else
-        timeout 600 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release $METAL_ARG $CMAKE_CUDA_DISABLED --fresh || {
+        timeout 600 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release $METAL_ARG $CMAKE_CUDA_DISABLED $MEMORY_CONSERVATIVE_FLAGS --fresh || {
             echo "[build-whillats] CMake configuration timed out or failed. Retrying with verbose output..."
-            cmake -S . -B build -DCMAKE_BUILD_TYPE=Release $METAL_ARG $CMAKE_CUDA_DISABLED --fresh -DCMAKE_VERBOSE_MAKEFILE=ON
+            cmake -S . -B build -DCMAKE_BUILD_TYPE=Release $METAL_ARG $CMAKE_CUDA_DISABLED $MEMORY_CONSERVATIVE_FLAGS --fresh -DCMAKE_VERBOSE_MAKEFILE=ON
         }
-        echo "[build-whillats] Starting build..."
-        cmake --build build --parallel 4 --verbose
+        echo "[build-whillats] Starting build with $PARALLEL_JOBS parallel jobs..."
+        cmake --build build --parallel $PARALLEL_JOBS
     fi
     popd
     echo "[build-whillats] Whisper/Llama/TTS build completed."
@@ -456,13 +490,47 @@ if [ "$IOS_BUILD" = "true" ]; then
     
 elif [ "$BUILD_TYPE" = "debug" ]; then
     echo "Building WebRTC project (debug, whillats: $ENABLE_WHILLATS)..."
+    # Check available memory and adjust ninja parallelism
+    if [ -f "/.dockerenv" ] || [ -n "${GITHUB_ACTIONS}" ]; then
+        TOTAL_MEM=$(free -m | awk 'NR==2{printf "%.0f", $2}')
+        AVAILABLE_MEM=$(echo "$TOTAL_MEM * 0.6" | bc 2>/dev/null || echo "2000")
+    else
+        AVAILABLE_MEM=$(free -m 2>/dev/null | awk 'NR==2{printf "%.0f", $7}' || echo "8000")
+    fi
+    if [ "$AVAILABLE_MEM" -lt 4000 ]; then
+        NINJA_JOBS="-j1"
+        echo "Low memory detected, using single-threaded ninja build"
+    elif [ "$AVAILABLE_MEM" -lt 8000 ]; then
+        NINJA_JOBS="-j2"
+        echo "Medium memory detected, using 2 parallel ninja jobs"
+    else
+        NINJA_JOBS=""
+        echo "Sufficient memory detected, using default ninja parallelism"
+    fi
     (cd $SRC_DIR && gn gen out/debug --args="is_debug=true rtc_include_opus=true rtc_enable_symbol_export=true rtc_build_examples=true rtc_use_speech_audio_devices=$ENABLE_WHILLATS $EXTRA_ARGS")
-    (cd $SRC_DIR && ninja -C out/$BUILD_TYPE directcall)
+    (cd $SRC_DIR && ninja -C out/$BUILD_TYPE $NINJA_JOBS directcall)
     echo "Debug build completed."
 else
     echo "Building WebRTC project (release, whillats: $ENABLE_WHILLATS)..."
+    # Check available memory and adjust ninja parallelism
+    if [ -f "/.dockerenv" ] || [ -n "${GITHUB_ACTIONS}" ]; then
+        TOTAL_MEM=$(free -m | awk 'NR==2{printf "%.0f", $2}')
+        AVAILABLE_MEM=$(echo "$TOTAL_MEM * 0.6" | bc 2>/dev/null || echo "2000")
+    else
+        AVAILABLE_MEM=$(free -m 2>/dev/null | awk 'NR==2{printf "%.0f", $7}' || echo "8000")
+    fi
+    if [ "$AVAILABLE_MEM" -lt 4000 ]; then
+        NINJA_JOBS="-j1"
+        echo "Low memory detected, using single-threaded ninja build"
+    elif [ "$AVAILABLE_MEM" -lt 8000 ]; then
+        NINJA_JOBS="-j2"
+        echo "Medium memory detected, using 2 parallel ninja jobs"
+    else
+        NINJA_JOBS=""
+        echo "Sufficient memory detected, using default ninja parallelism"
+    fi
     (cd $SRC_DIR && gn gen out/release --args="is_debug=false rtc_include_opus=true rtc_enable_symbol_export=true rtc_build_examples=true rtc_use_speech_audio_devices=$ENABLE_WHILLATS $EXTRA_ARGS")
-    (cd $SRC_DIR && ninja -C out/$BUILD_TYPE directcall)
+    (cd $SRC_DIR && ninja -C out/$BUILD_TYPE $NINJA_JOBS directcall)
     echo "Release build completed."
 fi
 
