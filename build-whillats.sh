@@ -154,11 +154,12 @@ done
 
     cd ${WHILLATS_THIRD_PARTY_DIR}/pcaudiolib
 
+    echo "building pcaudiolib"
+    ./autogen.sh
+    ./configure --with-pic
+    make
+
     if [ "${HOST_PLATFORM}" = "mac" ]
     then
-        echo "building pcaudiolib"
-        ./autogen.sh
-        ./configure
-        make
         ./libtool --mode=install cp src/libpcaudio.la  ${WHILLATS_THIRD_PARTY_DIR}/pcaudiolib/src/libpcaudio.dylib
     fi
