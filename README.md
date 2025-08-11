@@ -44,23 +44,6 @@ All builds are managed by the `build.sh` script in the project root. The script 
 - Optionally enable AI speech features
 - Generate self-signed certificates if needed
 
-### Required Steps for Speech-Enabled Builds
-If you want to build with whillats (Whisper/Llama/TTS integration), you must:
-1. Initialize and update submodules:
-   ```bash
-   git submodule update --init --recursive
-   ```
-2. Build the Whisper library:
-   ```bash
-   cd src/modules/third_party/whillats
-   # For debug build:
-   make debug
-   # For release build:
-   make release
-   cd -
-   ```
-Run these steps before running the main build script with the `whillats` option.
-
 ### Usage
 ```bash
 ./build.sh [debug|release] [whillats]
@@ -87,6 +70,14 @@ Run these steps before running the main build script with the `whillats` option.
 - **Release build with whillats:**
   ```bash
   ./build.sh release whillats
+  ```
+- **Release iOS build with whillats:**
+  ```bash
+  ./build.sh ios release whillats
+  ```
+- **Debug iOS build no whillats:**
+  ```bash
+  ./build.sh ios debug
   ```
 
 ### What do the AI options do?
