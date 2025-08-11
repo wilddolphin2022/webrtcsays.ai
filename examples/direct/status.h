@@ -28,7 +28,7 @@ inline constexpr const char kBusyHere[]              = "486 Busy Here";         
 
     inline bool IsStatusCode(const std::string& message) {
         std::regex pattern("^\\d+\\s");
-        return std::regex_match(message, pattern);
+        return std::regex_search(message, pattern);
     }
 
 } // namespace StatusCodes
