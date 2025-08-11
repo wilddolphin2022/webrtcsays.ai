@@ -570,50 +570,15 @@ if [ "$IOS_BUILD" = "true" ]; then
     
 elif [ "$BUILD_TYPE" = "debug" ]; then
     echo "Building WebRTC project (debug, whillats: $ENABLE_WHILLATS)..."
-    # Check available memory and adjust ninja parallelism
-    if [ -f "/.dockerenv" ] || [ -n "${GITHUB_ACTIONS}" ]; then
-        TOTAL_MEM=$(free -m | awk 'NR==2{printf "%.0f", $2}')
-        AVAILABLE_MEM=$(echo "$TOTAL_MEM * 0.6" | bc 2>/dev/null || echo "2000")
-    else
-        AVAILABLE_MEM=$(free -m 2>/dev/null | awk 'NR==2{printf "%.0f", $7}' || echo "8000")
-    fi
-    if [ "$AVAILABLE_MEM" -lt 4000 ]; then
-        NINJA_JOBS="-j1"
-        echo "Low memory detected, using single-threaded ninja build"
-    elif [ "$AVAILABLE_MEM" -lt 8000 ]; then
-        NINJA_JOBS="-j2"
-        echo "Medium memory detected, using 2 parallel ninja jobs"
-    else
-        NINJA_JOBS=""
-        echo "Sufficient memory detected, using default ninja parallelism"
-    fi
     (cd $SRC_DIR && gn gen out/debug --args="is_debug=true rtc_include_opus=true rtc_enable_symbol_export=true rtc_build_examples=true rtc_use_speech_audio_devices=$ENABLE_WHILLATS $EXTRA_ARGS")
-    (cd $SRC_DIR && ninja -C out/$BUILD_TYPE $NINJA_JOBS directcall)
+    (cd $SRC_DIR && ninja -C out/$BUILD_TYPE directcall)
     echo "Debug build completed."
 else
     echo "Building WebRTC project (release, whillats: $ENABLE_WHILLATS)..."
-    # Check available memory and adjust ninja parallelism
-    if [ -f "/.dockerenv" ] || [ -n "${GITHUB_ACTIONS}" ]; then
-        TOTAL_MEM=$(free -m | awk 'NR==2{printf "%.0f", $2}')
-        AVAILABLE_MEM=$(echo "$TOTAL_MEM * 0.6" | bc 2>/dev/null || echo "2000")
-    else
-        AVAILABLE_MEM=$(free -m 2>/dev/null | awk 'NR==2{printf "%.0f", $7}' || echo "8000")
-    fi
-    if [ "$AVAILABLE_MEM" -lt 4000 ]; then
-        NINJA_JOBS="-j1"
-        echo "Low memory detected, using single-threaded ninja build"
-    elif [ "$AVAILABLE_MEM" -lt 8000 ]; then
-        NINJA_JOBS="-j2"
-        echo "Medium memory detected, using 2 parallel ninja jobs"
-    else
-        NINJA_JOBS=""
-        echo "Sufficient memory detected, using default ninja parallelism"
-    fi
     (cd $SRC_DIR && gn gen out/release --args="is_debug=false rtc_include_opus=true rtc_enable_symbol_export=true rtc_build_examples=true rtc_use_speech_audio_devices=$ENABLE_WHILLATS $EXTRA_ARGS")
-    (cd $SRC_DIR && ninja -C out/$BUILD_TYPE $NINJA_JOBS directcall)
+    (cd $SRC_DIR && ninja -C out/$BUILD_TYPE directcall)
     echo "Release build completed."
 fi
-
 
 
 # Store the current commit hash as the last built commit
