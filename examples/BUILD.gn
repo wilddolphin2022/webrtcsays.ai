@@ -956,7 +956,7 @@ if (!build_with_chromium) {
       public_headers = get_target_outputs(":create_bracket_include_headers_direct_framework")
 
       if(is_debug) {
-        cflags = ["-g", "-O0"]         
+        cflags = ["-gdwarf-4", "-O0"]         
       }
       #cflags += [ "-mmacosx-version-min=15.0.0" ]
 
@@ -1071,7 +1071,7 @@ if (!build_with_chromium) {
         cflags += [ "-mmacosx-version-min=15.0.0" ]
       }
       if(is_debug) {
-        cflags += ["-g", "-O0"]         
+        cflags += ["-gdwarf-4", "-O0"]         
       }
       
       include_dirs += [ 
@@ -1134,7 +1134,9 @@ if (!build_with_chromium) {
         "../rtc_base:task_queue_for_test",
         "../system_wrappers:field_trial",
         "../test:field_trial",
+        "../test:platform_video_capturer",
         "../test:rtp_test_utils",
+        "../test:test_video_capturer",
         "../rtc_base:task_queue_for_test",
         "//third_party/abseil-cpp/absl/memory",
         "//third_party/jsoncpp:jsoncpp",
@@ -1186,7 +1188,7 @@ if (!build_with_chromium) {
       cflags += [ "-mmacosx-version-min=15.0.0" ]
     }
     if (is_debug) {
-      cflags += [ "-g", "-O0" ]
+      cflags += [ "-gdwarf-4", "-O0" ]
     }
 
     include_dirs += [ "../third_party/boringssl/src/include" ]
