@@ -664,10 +664,15 @@ void DirectCalleeClient::setupWebRTCListener() {
             }
             if (!video_source_) {
                 APP_LOG(AS_INFO) << "Callee fallback to synthetic video source";
-                signaling_thread()->BlockingCall([this]() {
+                if (rtc::Thread::Current() == signaling_thread()) {
                     auto src = rtc::make_ref_counted<webrtc::EchoVideoTrackSource>();
                     video_source_ = src;
-                });
+                } else {
+                    signaling_thread()->BlockingCall([this]() {
+                        auto src = rtc::make_ref_counted<webrtc::EchoVideoTrackSource>();
+                        video_source_ = src;
+                    });
+                }
             }
             SetVideoSource(video_source_);
         }
