@@ -313,10 +313,15 @@ void DirectPeer::Start() {
                 // Fallback to synthetic if camera unavailable or unspecified.
                 if (!video_source_) {
                     RTC_LOG(LS_INFO) << "Falling back to EchoVideoTrackSource";
-                    signaling_thread()->BlockingCall([this]() {
+                    if (rtc::Thread::Current() == signaling_thread()) {
                         auto src = rtc::make_ref_counted<webrtc::EchoVideoTrackSource>();
                         video_source_ = src;
-                    });
+                    } else {
+                        signaling_thread()->BlockingCall([this]() {
+                            auto src = rtc::make_ref_counted<webrtc::EchoVideoTrackSource>();
+                            video_source_ = src;
+                        });
+                    }
                 }
                 SetVideoSource(video_source_);
             }
