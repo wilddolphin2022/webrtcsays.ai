@@ -264,9 +264,7 @@ void DirectCaller::OnMessage(rtc::AsyncPacketSocket* socket,
     else if (message.find(Msg::kWaiting) == 0) {
         Start();
     } 
-    else if (message.find(StatusCodes::kBadRequest) == 0 ||
-             message.find(StatusCodes::kTemporarilyUnavailable) == 0 ||
-             message.find(StatusCodes::kBusyHere) == 0) {
+    else if (StatusCodes::IsStatusCode(message)) {
         RTC_LOG(LS_WARNING) << "Received error status from callee: " << message;
         // Stop HELLO retries to avoid spamming the callee.
         welcome_received_ = false;

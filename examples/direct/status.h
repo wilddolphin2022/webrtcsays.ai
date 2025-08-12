@@ -1,5 +1,20 @@
+/*
+ *  (c) 2025, wilddolphin2022 
+ *  For WebRTCsays.ai project
+ *  https://github.com/wilddolphin2022
+ *
+ *  Use of this source code is governed by a BSD-style license
+ *  that can be found in the LICENSE file in the root of the source
+ *  tree. An additional intellectual property rights grant can be found
+ *  in the file PATENTS.  All contributing project authors may
+ *  be found in the AUTHORS file in the root of the source tree.
+ */
+
 #ifndef EXAMPLES_DIRECT_STATUS_H_
 #define EXAMPLES_DIRECT_STATUS_H_
+
+#include <regex>
+#include <string>
 
 namespace StatusCodes {
 
@@ -10,6 +25,11 @@ inline constexpr const char kOk[]                    = "200 OK";                
 inline constexpr const char kBadRequest[]            = "400 Bad Request";              // Generic parse error
 inline constexpr const char kTemporarilyUnavailable[]= "480 Temporarily Unavailable";  // Callee offline
 inline constexpr const char kBusyHere[]              = "486 Busy Here";               // Callee busy
+
+    inline bool IsStatusCode(const std::string& message) {
+        std::regex pattern("^\\d+\\s");
+        return std::regex_search(message, pattern);
+    }
 
 } // namespace StatusCodes
 

@@ -38,11 +38,31 @@ DirectCallerClient::DirectCallerClient(const Options& opts)
     signaling_client_ = std::make_unique<DirectClient>(opts.user_name);
     // Busy when caller already in an active call
     signaling_client_->setIsBusyCallback([this]() {
-        bool pc_active   = this->peer_connection() != nullptr;
-        // bool sock_active = this->tcp_socket_ != nullptr &&
-        //                    this->tcp_socket_->GetState() != rtc::AsyncPacketSocket::STATE_CLOSED;
-        return pc_active; // || sock_active;
+        // Only consider busy if there's an active call with remote description set
+        bool has_pc = this->peer_connection() != nullptr;
+        bool has_remote_desc = has_pc && this->peer_connection()->remote_description() != nullptr;
+        bool active_call = has_pc && has_remote_desc;
+        return active_call;
     });
+
+    // Set up WAITING callback immediately in constructor
+    signaling_client_->setWaitingReceivedCallback([this](const std::string&) {
+        APP_LOG(AS_INFO) << "DirectCallerClient received WAITING message, checking initialization";
+        // Ensure DirectCallerClient is properly initialized before calling Start()
+        if (!initialized_) {
+            if (!this->Initialize()) {
+                APP_LOG(AS_ERROR) << "DirectCallerClient initialization failed, cannot start";
+                return;
+            }
+        }
+        
+        // Post Start() to signaling thread to avoid threading violations
+        APP_LOG(AS_INFO) << "DirectCallerClient posting Start() to signaling thread";
+        this->signaling_thread()->PostTask([this]() {
+            APP_LOG(AS_INFO) << "DirectCallerClient calling Start() on signaling thread";
+            this->Start();
+        });
+    });    
 }
 
 DirectCallerClient::~DirectCallerClient() { Disconnect(); }
@@ -366,16 +386,20 @@ bool DirectCallerClient::RequestUserList() {
 DirectCalleeClient::DirectCalleeClient(const Options& opts)
     : DirectCallee(opts), initialized_(false), listening_(false) {
     active_peer_id_ = "";
-    // Let the OS pick an available port (0) so each new session is guaranteed
-    // to bind successfully even if the previous one is still in TIME_WAIT.
-    local_port_ = 0;
+    // Parse the intended listening port from opts_.address instead of forcing 0
+    std::string temp_ip;
+    ParseIpAndPort(opts_.address, temp_ip, local_port_);
     signaling_client_ = std::make_unique<DirectClient>(opts.user_name);
     // Provide busy predicate: callee is busy while a PeerConnection exists
     signaling_client_->setIsBusyCallback([this]() {
-        bool pc_active   = this->peer_connection() != nullptr;
-        // bool sock_active = this->tcp_socket_ != nullptr &&
-        //                    this->tcp_socket_->GetState() != rtc::AsyncPacketSocket::STATE_CLOSED;
-        return pc_active; // || sock_active;
+        // Only consider busy if there's an active call with remote description set
+        bool has_pc = this->peer_connection() != nullptr;
+        bool has_remote_desc = has_pc && this->peer_connection()->remote_description() != nullptr;
+        bool active_call = has_pc && has_remote_desc;
+        APP_LOG(AS_INFO) << "Busy check: has_pc=" << (has_pc ? "true" : "false") 
+                        << ", has_remote_desc=" << (has_remote_desc ? "true" : "false")
+                        << ", returning=" << (active_call ? "BUSY" : "AVAILABLE");
+        return active_call;        
     });
 }
 
@@ -462,6 +486,12 @@ bool DirectCalleeClient::StartListening() {
         this->HandleMessage(nullptr, raw_message, rtc::SocketAddress());
     });
     
+    // Forward raw WAITING lines (with JSON payload) so DirectPeer can extract agent info.
+    signaling_client_->setWaitingReceivedCallback([this](const std::string& raw_message) {
+        // Pass through to DirectPeer message handler; no socket context in WSS path.
+        this->HandleMessage(nullptr, raw_message, rtc::SocketAddress());
+    });
+
     // Try to connect to signaling server to register our presence
     // But don't fail if signaling server is unavailable
     std::string server_host; int server_port_int = 0;
@@ -594,10 +624,19 @@ void DirectCalleeClient::SignalQuit() {
 // -------------------------------------------------------------------
 bool DirectCalleeClient::SendMessage(const std::string& message) {
     // Use signaling server if connected; fall back to base implementation.
+    // Status code responses (200 OK, 486 Busy Here, etc.) should always go via TCP
+    // to respond to the connection that sent the original message (HELLO, BYE, etc.)
+    if (StatusCodes::IsStatusCode(message)) {
+        // Send status codes via TCP connection (base implementation)
+        return DirectCallee::SendMessage(message);
+    }
+
     if (signaling_client_ && signaling_client_->isConnected()) {
         signaling_client_->ws_client()->send_message(message);
         return true;
     }
+
+    // Fall back to base implementation if signaling server not available
     return DirectCallee::SendMessage(message);
 }
 
@@ -621,14 +660,26 @@ void DirectCalleeClient::setupWebRTCListener() {
     if (opts_.video) {
         if (!video_source_) {
             if (!opts_.camera.empty()) {
-                video_source_ = CreateCameraVideoSource(this, opts_);
+                
+                if (rtc::Thread::Current() == signaling_thread()) {
+                    video_source_ = CreateCameraVideoSource(this, opts_);
+                } else {
+                    signaling_thread()->BlockingCall([this]() {
+                        video_source_ = CreateCameraVideoSource(this, opts_);
+                    });
+                }                
             }
             if (!video_source_) {
                 APP_LOG(AS_INFO) << "Callee fallback to synthetic video source";
-                signaling_thread()->BlockingCall([this]() {
+                if (rtc::Thread::Current() == signaling_thread()) {
                     auto src = rtc::make_ref_counted<webrtc::EchoVideoTrackSource>();
                     video_source_ = src;
-                });
+                } else {
+                    signaling_thread()->BlockingCall([this]() {
+                        auto src = rtc::make_ref_counted<webrtc::EchoVideoTrackSource>();
+                        video_source_ = src;
+                    });
+                }
             }
             SetVideoSource(video_source_);
         }
@@ -959,6 +1010,7 @@ void DirectCalleeClient::OnConnectionChange(webrtc::PeerConnectionInterface::Pee
 DirectClient::DirectClient(const std::string& user_id)
     : user_id_(user_id), connected_(false), registered_(false) {
     invite_received_callback_ = nullptr;
+    waiting_received_callback_ = nullptr;
     // Create a dedicated network thread for WebSocket operations first
     network_thread_ = rtc::Thread::CreateWithSocketServer();
     network_thread_->SetName("WebSocketNetworkThread", nullptr);
@@ -1160,7 +1212,14 @@ void DirectClient::handleProtocolMessage(const std::string& message) {
 
         return; // stop further processing for INVITE – handled above
     }
-
+    else if (message == Msg::kWaiting) {
+        // Forward WAITING message to caller via dedicated callback
+        if (waiting_received_callback_) {
+            waiting_received_callback_(message);
+        }
+        return; // stop further processing for WAITING – handled above
+    }
+    
     else if (message.rfind(Msg::kAddressPrefix, 0) == 0) {
         // Format: ADDRESS:user_id:ip:port
         std::vector<std::string> parts;

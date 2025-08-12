@@ -42,6 +42,7 @@ using UserListReceivedCallback = std::function<void(const std::vector<std::strin
 
 // Callback for raw INVITE lines (including JSON payload)
 using InviteReceivedCallback = std::function<void(const std::string& message)>;
+using WaitingReceivedCallback = std::function<void(const std::string& message)>;
 
 // Callback for receiving a direct IP:port address for a peer
 using AddressReceivedCallback = std::function<void(const std::string& user_id,
@@ -70,6 +71,7 @@ public:
     void setAddressReceivedCallback(AddressReceivedCallback callback) { address_received_callback_ = callback; }
     void setUserListReceivedCallback(UserListReceivedCallback callback) { user_list_received_callback_ = callback; }
     void setInviteReceivedCallback(InviteReceivedCallback callback) { invite_received_callback_ = std::move(callback); }
+    void setWaitingReceivedCallback(WaitingReceivedCallback callback) { waiting_received_callback_ = std::move(callback); }
 
     // Indicates whether this client is currently busy (active call)
     void setIsBusyCallback(const std::function<bool()>& cb) { is_busy_callback_ = cb; }
@@ -115,6 +117,7 @@ protected:
     AddressReceivedCallback address_received_callback_;
     UserListReceivedCallback user_list_received_callback_;
     InviteReceivedCallback invite_received_callback_;
+    WaitingReceivedCallback waiting_received_callback_;
     std::function<bool()> is_busy_callback_;
     
     std::function<void(const std::string&)> default_ws_handler_;

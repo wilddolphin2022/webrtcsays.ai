@@ -176,10 +176,15 @@ CreateCameraVideoSource(DirectPeer* owner, const Options& opts) {
   // internal thread checker is satisfied.
   rtc::scoped_refptr<FakeVideoTrackSource> track_source;
   if (owner && owner->signaling_thread()) {
-      owner->signaling_thread()->BlockingCall([&track_source]() {
+      if (rtc::Thread::Current() == owner->signaling_thread()) {
           track_source = FakeVideoTrackSource::Create(false);
           track_source->SetState(webrtc::MediaSourceInterface::kLive);
-      });
+      } else {
+          owner->signaling_thread()->BlockingCall([&track_source]() {
+              track_source = FakeVideoTrackSource::Create(false);
+              track_source->SetState(webrtc::MediaSourceInterface::kLive);
+          });
+      }
   } else {
       track_source = FakeVideoTrackSource::Create(false);
       track_source->SetState(webrtc::MediaSourceInterface::kLive);
@@ -313,10 +318,15 @@ void DirectPeer::Start() {
                 // Fallback to synthetic if camera unavailable or unspecified.
                 if (!video_source_) {
                     RTC_LOG(LS_INFO) << "Falling back to EchoVideoTrackSource";
-                    signaling_thread()->BlockingCall([this]() {
+                    if (rtc::Thread::Current() == signaling_thread()) {
                         auto src = rtc::make_ref_counted<webrtc::EchoVideoTrackSource>();
                         video_source_ = src;
-                    });
+                    } else {
+                        signaling_thread()->BlockingCall([this]() {
+                            auto src = rtc::make_ref_counted<webrtc::EchoVideoTrackSource>();
+                            video_source_ = src;
+                        });
+                    }
                 }
                 SetVideoSource(video_source_);
             }
@@ -621,10 +631,15 @@ void DirectPeer::SetRemoteDescription(const std::string& sdp) {
                         }
                         if (!video_source_) {
                             RTC_LOG(LS_INFO) << "Callee falling back to EchoVideoTrackSource";
-                            signaling_thread()->BlockingCall([this]() {
+                            if (rtc::Thread::Current() == signaling_thread()) {
                                 auto src = rtc::make_ref_counted<webrtc::EchoVideoTrackSource>();
                                 video_source_ = src;
-                            });
+                            } else {
+                                signaling_thread()->BlockingCall([this]() {
+                                    auto src = rtc::make_ref_counted<webrtc::EchoVideoTrackSource>();
+                                    video_source_ = src;
+                                });
+                            }
                         }
                         SetVideoSource(video_source_);
                         RTC_LOG(LS_INFO) << "Video source configured for callee.";
