@@ -660,7 +660,14 @@ void DirectCalleeClient::setupWebRTCListener() {
     if (opts_.video) {
         if (!video_source_) {
             if (!opts_.camera.empty()) {
-                video_source_ = CreateCameraVideoSource(this, opts_);
+                
+                if (rtc::Thread::Current() == signaling_thread()) {
+                    video_source_ = CreateCameraVideoSource(this, opts_);
+                } else {
+                    signaling_thread()->BlockingCall([this]() {
+                        video_source_ = CreateCameraVideoSource(this, opts_);
+                    });
+                }                
             }
             if (!video_source_) {
                 APP_LOG(AS_INFO) << "Callee fallback to synthetic video source";
