@@ -533,6 +533,10 @@ if [ "$IOS_BUILD" = "true" ]; then
         IOS_ARGS="$IOS_ARGS rtc_use_speech_audio_devices=false"
     fi
     
+    # Clean iOS build directory
+    echo "Cleaning iOS build directory..."
+    (cd $SRC_DIR && rm -rf out/ios_arm64)
+    
     echo "Generating iOS build configuration..."
     (cd $SRC_DIR && gn gen out/ios_arm64 --args="$IOS_ARGS")
     
