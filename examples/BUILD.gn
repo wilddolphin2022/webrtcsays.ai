@@ -908,9 +908,9 @@ if (!build_with_chromium) {
       script = "//tools_webrtc/apple/copy_framework_header.py"
       sources = [
         "direct/direct.h",
-        "direct/option.h",
+        #"direct/option.h",
         "direct/client.h",
-        "direct/wsock.h"
+        #"direct/wsock.h"
       ]
       outputs = [
         "$target_gen_dir/direct.framework/Headers/{{source_file_part}}",
@@ -926,7 +926,7 @@ if (!build_with_chromium) {
 
     ios_framework_bundle("direct_framework") {
       info_plist = "direct/Info.plist"
-      output_name = "direct"  # Base name for the framework (direct.framework)
+      output_name = "direct"
       configs += [ "//:common_inherited_config" ]
       if (!defined(testonly) || !testonly) {
         configs += rtc_prod_configs
@@ -952,13 +952,11 @@ if (!build_with_chromium) {
         "direct/client.h",
       ]
 
-      # Use the output of the action_foreach target for public headers
       public_headers = get_target_outputs(":create_bracket_include_headers_direct_framework")
 
       if(is_debug) {
         cflags = ["-gdwarf-4", "-O0"]         
       }
-      #cflags += [ "-mmacosx-version-min=15.0.0" ]
 
       include_dirs += [ 
         "../third_party/boringssl/src/include",
@@ -987,6 +985,21 @@ if (!build_with_chromium) {
         "//api/audio_codecs:audio_codecs_api",
         "//api/audio_codecs:builtin_audio_decoder_factory",
         "//api/audio_codecs:builtin_audio_encoder_factory",
+        "//api/video_codecs:video_decoder_factory_template",
+
+        "//api/video_codecs:video_decoder_factory_template_libvpx_vp8_adapter",
+        "//api/video_codecs:video_decoder_factory_template_libvpx_vp9_adapter",
+        "//api/video_codecs:video_decoder_factory_template_open_h264_adapter",
+        "//api/video_codecs:video_encoder_factory_template",
+
+        "//api/video_codecs:video_encoder_factory_template_libvpx_vp8_adapter",
+        "//api/video_codecs:video_encoder_factory_template_libvpx_vp9_adapter",
+        "//api/video_codecs:video_encoder_factory_template_open_h264_adapter",
+        "//modules/video_coding:webrtc_vp8",
+        "//modules/video_coding:webrtc_vp9", 
+        "//modules/video_coding:video_codec_interface",
+        "//modules/audio_device",
+        "//modules/audio_processing",
         "//api/task_queue:pending_task_safety_flag",
         "//api/units:time_delta",
         "//api/video:video_frame",
@@ -994,6 +1007,7 @@ if (!build_with_chromium) {
         "//api/video_codecs:video_codecs_api",
         "//media:media_channel",
         "//media:video_common",
+        "//media:rtc_audio_video",
         "//p2p:connection",
         "//p2p:port_allocator",
         "//pc:video_track_source",
@@ -1013,7 +1027,6 @@ if (!build_with_chromium) {
         "//system_wrappers:field_trial",
         "//third_party/abseil-cpp/absl/memory",
         "//third_party/jsoncpp:jsoncpp",
-        "//pc:pc_test_utils",
         "//third_party/abseil-cpp/absl/types:optional",
       ]
 
@@ -1027,7 +1040,10 @@ if (!build_with_chromium) {
         "VideoToolbox.framework",
       ]
 
-      # Conditionally add the whillats config for direct_framework
+      ldflags = [
+        "-Wl,-all_load",
+      ]
+
       if (rtc_use_speech_audio_devices) {
         configs += [ "//sdk:whillats_framework_config" ]
       }
@@ -1196,14 +1212,13 @@ if (!build_with_chromium) {
 
     if (is_ios) {
       # Link against the framework on iOS
-      # Ensure dependency on both the framework and the correct header processing action
-      deps = [ ":direct_framework", ":create_bracket_include_headers_direct_framework" ]
+      deps = [ ":direct_framework" ]
       if (rtc_use_speech_audio_devices) {
-        configs       += [ "//sdk:whillats_framework_config" ]
+        configs += [ "//sdk:whillats_framework_config" ]
       }       
-      # Add the framework itself and the main WebRTC framework to link
-      if (!defined(framework_dirs)) { framework_dirs = [] } # Ensure list exists
-      framework_dirs += [ root_out_dir ]                    # Add path to built framework
+      # Add the framework to link
+      if (!defined(framework_dirs)) { framework_dirs = [] }
+      framework_dirs += [ root_out_dir ]
       if (!defined(ldflags)) { ldflags = [] }
       # Set rpath to find the framework within the app bundle
       ldflags += [ "-Wl,-rpath,@executable_path/Frameworks" ]

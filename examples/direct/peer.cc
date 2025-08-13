@@ -643,6 +643,49 @@ void DirectPeer::SetRemoteDescription(const std::string& sdp) {
                         }
                         SetVideoSource(video_source_);
                         RTC_LOG(LS_INFO) << "Video source configured for callee.";
+
+                        bool video_track_added = false;
+
+                        // Try to attach our video track to an existing VIDEO transceiver that came
+                        // from the remote offer.
+                        for (const auto& t : peer_connection()->GetTransceivers()) {
+                            if (t->media_type() == cricket::MEDIA_TYPE_VIDEO) {
+                                // Attach our local track FIRST, then switch direction to sendrecv.
+                                auto sender = t->sender();
+                                if (sender && sender->SetTrack(video_track_.get())) {
+                                    RTC_LOG(LS_INFO) << "Attached local video track to existing transceiver.";
+
+                                    // Now request bidirectional media
+                                    auto dir_res = t->SetDirectionWithError(webrtc::RtpTransceiverDirection::kSendRecv);
+                                    RTC_LOG(LS_INFO) << "Setting existing video transceiver direction → "
+                                                     << (dir_res.ok() ? "success" : dir_res.message());
+
+                                    video_track_added = true;
+                                } else {
+                                    RTC_LOG(LS_WARNING) << "Failed to attach track to existing transceiver (sender unavailable or SetTrack failed).";
+                                }
+                                break; // Only need the first VIDEO transceiver
+                            }
+                        }
+
+                        // If no existing transceiver, fall back to AddTransceiver which
+                        // will re-use or create an appropriate transceiver without adding an extra m-line.
+                        if (!video_track_added) {
+                            webrtc::RtpTransceiverInit init;
+                            init.direction = webrtc::RtpTransceiverDirection::kSendRecv;
+                            auto tr_or = peer_connection()->AddTransceiver(video_track_, init);
+                            if (tr_or.ok()) {
+                                RTC_LOG(LS_INFO) << "Created new video transceiver with sendrecv.";
+                                video_track_added = true;
+                            } else {
+                                RTC_LOG(LS_ERROR) << "AddTransceiver failed: " << tr_or.error().message();
+                            }
+                        }
+
+                        if (!video_track_added) {
+                            RTC_LOG(LS_ERROR) << "Could not attach video track – aborting answer creation.";
+                            return;
+                        }
                     }
 
                     create_session_observer_ = rtc::make_ref_counted<LambdaCreateSessionDescriptionObserver>(

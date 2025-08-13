@@ -669,19 +669,9 @@ void DirectCalleeClient::setupWebRTCListener() {
                     });
                 }                
             }
-            if (!video_source_) {
-                APP_LOG(AS_INFO) << "Callee fallback to synthetic video source";
-                if (rtc::Thread::Current() == signaling_thread()) {
-                    auto src = rtc::make_ref_counted<webrtc::EchoVideoTrackSource>();
-                    video_source_ = src;
-                } else {
-                    signaling_thread()->BlockingCall([this]() {
-                        auto src = rtc::make_ref_counted<webrtc::EchoVideoTrackSource>();
-                        video_source_ = src;
-                    });
-                }
-            }
-            SetVideoSource(video_source_);
+            // For echo video functionality, we don't create a video source upfront
+            // Instead, we wait for remote video to arrive and then echo it back
+            APP_LOG(AS_INFO) << "Callee waiting for remote video to echo";
         }
     }
 

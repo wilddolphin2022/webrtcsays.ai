@@ -22,14 +22,16 @@
 #include <sstream>
 #include <memory>
 #include <cstdlib>
+#include <chrono>
+#include <thread>
 #include "rtc_base/time_utils.h"
 #include "api/video_codecs/video_decoder_factory_template.h"
-#include "api/video_codecs/video_decoder_factory_template_dav1d_adapter.h"
+
 #include "api/video_codecs/video_decoder_factory_template_libvpx_vp8_adapter.h"
 #include "api/video_codecs/video_decoder_factory_template_libvpx_vp9_adapter.h"
 #include "api/video_codecs/video_decoder_factory_template_open_h264_adapter.h"
 #include "api/video_codecs/video_encoder_factory_template.h"
-#include "api/video_codecs/video_encoder_factory_template_libaom_av1_adapter.h"
+
 #include "api/video_codecs/video_encoder_factory_template_libvpx_vp8_adapter.h"
 #include "api/video_codecs/video_encoder_factory_template_libvpx_vp9_adapter.h"
 #include "api/video_codecs/video_encoder_factory_template_open_h264_adapter.h"
@@ -267,8 +269,24 @@ void DirectApplication::Cleanup() {
   socket_factory_.reset();
   
   if(pss_) {
+    // Force cleanup of any remaining dispatchers before destroying PhysicalSocketServer
+    // This prevents the DCHECK assertion failure in the PhysicalSocketServer destructor
+    RTC_LOG(LS_INFO) << "Cleaning up PhysicalSocketServer";
+    
+    // Wake up the socket server to process any final cleanup
     pss_->WakeUp();
+    
+    // Give adequate time for any pending dispatcher removal operations to complete
+    // This is necessary because socket dispatchers may be removed asynchronously
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    
+    // Additional wakeup to ensure all cleanup is processed
+    pss_->WakeUp();
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    
+    RTC_LOG(LS_INFO) << "Destroying PhysicalSocketServer";
     delete pss_;
+    pss_ = nullptr;
   }
   if(network_manager_) {
     delete network_manager_;
@@ -276,7 +294,7 @@ void DirectApplication::Cleanup() {
 }
 
 void DirectApplication::Disconnect() {
-  if (rtc::Thread::Current() != main_thread_.get()) {
+  if (main_thread_ && !main_thread_->IsQuitting() && rtc::Thread::Current() != main_thread_.get()) {
     main_thread_->PostTask([this]() { Disconnect(); });
     return;
   }
@@ -317,6 +335,8 @@ void DirectApplication::Disconnect() {
     if (socket) {
       RTC_LOG(LS_INFO) << "Closing socket during disconnect";
       socket->Close();
+      // Allow time for dispatcher cleanup to complete
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
   }
   tracked_sockets_.clear();
@@ -649,13 +669,11 @@ bool DirectApplication::CreatePeerConnection() {
       std::make_unique<webrtc::VideoEncoderFactoryTemplate<
           webrtc::LibvpxVp8EncoderTemplateAdapter,
           webrtc::LibvpxVp9EncoderTemplateAdapter,
-          webrtc::OpenH264EncoderTemplateAdapter,
-          webrtc::LibaomAv1EncoderTemplateAdapter>>(),
+          webrtc::OpenH264EncoderTemplateAdapter>>(),
       std::make_unique<webrtc::VideoDecoderFactoryTemplate<
           webrtc::LibvpxVp8DecoderTemplateAdapter,
           webrtc::LibvpxVp9DecoderTemplateAdapter,
-          webrtc::OpenH264DecoderTemplateAdapter,
-          webrtc::Dav1dDecoderTemplateAdapter>>(),      
+          webrtc::OpenH264DecoderTemplateAdapter>>(),      
       nullptr, // audio_mixer
       nullptr  // audio_processing
   );
@@ -1059,7 +1077,50 @@ void DirectApplication::OnAddTrack(rtc::scoped_refptr<webrtc::RtpReceiverInterfa
             RTC_LOG(LS_INFO) << "Receiver: Video track state: " << video_track->state();
             RTC_LOG(LS_INFO) << "Receiver: Video track enabled: " << (video_track->enabled() ? "true" : "false");
         } else {
-            RTC_LOG(LS_ERROR) << "Video sink is still nullptr, cannot attach to track: " << receiver->track()->id();
+            RTC_LOG(LS_INFO) << "Creating echo video source for: " << receiver->track()->id();
+            
+            // Store reference to remote video track
+            remote_video_track_ = video_track;
+            
+            // Create echo source to receive and echo the remote video back
+            auto echo_source = rtc::make_ref_counted<webrtc::EchoVideoTrackSource>();
+            RTC_LOG(LS_INFO) << "Created EchoVideoTrackSource: " << echo_source.get();
+            
+            // Add simple debug sink to see if we receive ANY frames
+            class DebugVideoSink : public rtc::VideoSinkInterface<webrtc::VideoFrame> {
+            public:
+                void OnFrame(const webrtc::VideoFrame& frame) override {
+                    RTC_LOG(LS_VERBOSE) << "DebugVideoSink received frame: " << frame.width() << "x" << frame.height();
+                }
+                void OnDiscardedFrame() override {}
+            };
+            auto debug_sink = std::make_unique<DebugVideoSink>();
+            video_track->AddOrUpdateSink(debug_sink.get(), rtc::VideoSinkWants());
+            
+            // Store debug sink to keep it alive (otherwise it gets destroyed)
+            debug_sinks_.push_back(std::move(debug_sink));
+            
+            // Add echo source as sink to remote video track
+            video_track->AddOrUpdateSink(echo_source.get(), rtc::VideoSinkWants());
+            RTC_LOG(LS_INFO) << "Added echo source as sink to remote video track";
+            RTC_LOG(LS_INFO) << "Remote video track state: " << video_track->state() << ", enabled: " << (video_track->enabled() ? "true" : "false");
+            
+            // Store echo source to keep it alive (important!)
+            echo_sources_.push_back(echo_source);
+            
+            // Set the echo source as our outgoing video source
+            SetVideoSource(echo_source);
+            RTC_LOG(LS_INFO) << "Set echo source as outgoing video source";
+            
+            // Add the echo video track to peer connection for sending
+            if (video_source_) {
+                AddVideoTrackIfSourceAvailable();
+                RTC_LOG(LS_INFO) << "Added echo video track to peer connection";
+            } else {
+                RTC_LOG(LS_WARNING) << "video_source_ is null after SetVideoSource";
+            }
+            
+            RTC_LOG(LS_INFO) << "Echo video source created and attached to track: " << receiver->track()->id();
         }
     } else if (receiver->track()->kind() == webrtc::MediaStreamTrackInterface::kAudioKind) {
         RTC_LOG(LS_INFO) << "Audio track added.";

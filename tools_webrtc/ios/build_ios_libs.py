@@ -26,7 +26,7 @@ SRC_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, '..', '..'))
 sys.path.append(os.path.join(SRC_DIR, 'build'))
 import find_depot_tools
 
-SDK_OUTPUT_DIR = os.path.join(SRC_DIR, 'out_ios_libs')
+SDK_OUTPUT_DIR = os.path.join(SRC_DIR, 'out', '.webrtc_temp')
 SDK_FRAMEWORK_NAME = 'WebRTC.framework'
 SDK_DSYM_NAME = 'WebRTC.dSYM'
 SDK_XCFRAMEWORK_NAME = 'WebRTC.xcframework'
@@ -189,7 +189,8 @@ def BuildWebRTC(output_dir, target_environment, target_arch, flavor,
                    ('true' if libvpx_build_vp9 else 'false'))
 
     gn_args.append('use_lld=true')
-    gn_args.append('use_remoteexec=' + ('true' if use_remoteexec else 'false'))
+    # Always disable remoteexec to avoid vpython3 issues
+    gn_args.append('use_remoteexec=false')
     gn_args.append('rtc_enable_objc_symbol_export=true')
 
     args_string = ' '.join(gn_args + extra_gn_args)
@@ -236,7 +237,7 @@ def main():
         return 0
 
     gn_target_name = 'framework_objc'
-    gn_args.append('enable_dsyms=true')
+    gn_args.append('enable_dsyms=false')  # Disable dsyms to avoid missing dsymutil tool
     gn_args.append('enable_stripping=true')
 
     # Build all architectures.

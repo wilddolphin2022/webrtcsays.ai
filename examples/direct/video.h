@@ -46,6 +46,7 @@ class EchoVideoTrackSource : public webrtc::VideoTrackSource,
   // rtc::VideoSinkInterface implementation – called with frames from the
   // *remote* video track we attach to.
   void OnFrame(const webrtc::VideoFrame& frame) override {
+    RTC_LOG(LS_VERBOSE) << "EchoVideoTrackSource received frame: " << frame.width() << "x" << frame.height() << " timestamp=" << frame.timestamp_us();
     broadcaster_.OnFrame(frame);
   }
   void OnDiscardedFrame() override {}

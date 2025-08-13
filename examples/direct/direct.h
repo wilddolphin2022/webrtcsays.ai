@@ -47,12 +47,12 @@
 #include <api/video/video_frame.h>            // Needed for ConsoleVideoRenderer
 #include <api/video/video_sink_interface.h> // Needed for ConsoleVideoRenderer
 #include <api/video_codecs/video_decoder_factory_template.h>
-#include <api/video_codecs/video_decoder_factory_template_dav1d_adapter.h>
+
 #include <api/video_codecs/video_decoder_factory_template_libvpx_vp8_adapter.h>
 #include <api/video_codecs/video_decoder_factory_template_libvpx_vp9_adapter.h>
 #include <api/video_codecs/video_decoder_factory_template_open_h264_adapter.h>
 #include <api/video_codecs/video_encoder_factory_template.h>
-#include <api/video_codecs/video_encoder_factory_template_libaom_av1_adapter.h>
+
 #include <api/video_codecs/video_encoder_factory_template_libvpx_vp8_adapter.h>
 #include <api/video_codecs/video_encoder_factory_template_libvpx_vp9_adapter.h>
 #include <api/video_codecs/video_encoder_factory_template_open_h264_adapter.h>
@@ -109,9 +109,17 @@ class CameraFrameSink; // forward declaration
 
   // Inject Obj-C forward declarations only:
   #if TARGET_OS_IOS && defined(__OBJC__)
-  #import "sdk/objc/base/RTCVideoCapturer.h"
-  #import "sdk/objc/components/renderer/metal/RTCMTLVideoView.h"
-  #import "sdk/objc/api/peerconnection/RTCVideoTrack.h"
+#ifdef WEBRTC_LIBRARY_IMPL
+    // Internal build - import from SDK source paths
+    #import "sdk/objc/base/RTCVideoCapturer.h"
+    #import "sdk/objc/components/renderer/metal/RTCMTLVideoView.h"
+    #import "sdk/objc/api/peerconnection/RTCVideoTrack.h"
+#else
+    // External Xcode project build - import from framework
+    #import <WebRTC/RTCVideoCapturer.h>
+    #import <WebRTC/RTCMTLVideoView.h>
+    #import <WebRTC/RTCVideoTrack.h>
+#endif
   #endif
 
 #endif
@@ -293,6 +301,7 @@ class DIRECT_API DirectApplication : public webrtc::PeerConnectionObserver {
   rtc::scoped_refptr<webrtc::VideoTrackSourceInterface> video_source_ = nullptr;
   
   std::vector<rtc::scoped_refptr<webrtc::EchoVideoTrackSource>> echo_sources_ = {};
+  std::vector<std::unique_ptr<rtc::VideoSinkInterface<webrtc::VideoFrame>>> debug_sinks_ = {};
 
   // Capability hint received from peer via INIT JSON ("text-only", "audio", ...)
   std::string remote_agent_ = "audio"; // default behaviour: send pre-synthesised audio unless peer says otherwise

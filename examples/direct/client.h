@@ -165,12 +165,12 @@ public:
     explicit DirectCallerClient(const Options& opts);
     ~DirectCallerClient();
 
-    bool Initialize();
-    bool Connect();
-    void Disconnect();
-    bool IsConnected() const;
-    void RunOnBackgroundThread();
-    bool WaitUntilConnectionClosed(int timeout_ms = 5000);
+    virtual bool Initialize() override;
+    virtual bool Connect();
+    virtual void Disconnect() override;
+    virtual bool IsConnected() const;
+    virtual void RunOnBackgroundThread();
+    virtual bool WaitUntilConnectionClosed(int timeout_ms = 5000);
     
     // Set target user to call by name
     void SetTargetUser(const std::string& target_user_id) { opts_.target_name = target_user_id; }
@@ -223,15 +223,15 @@ public:
     // Forward signalling-line (LLAMA:, WHISPER:, etc.) to caller via WebSocket.
     bool SendMessage(const std::string& message) override;
 
-    bool Initialize();
-    bool StartListening();
-    void StopListening();
-    bool IsListening() const;
-    bool IsConnected() const;
-    void RunOnBackgroundThread();
-    bool WaitUntilConnectionClosed(int timeout_ms = 5000);
-    void ResetConnectionClosedEvent();
-    void SignalQuit();
+    virtual bool Initialize() override;
+    virtual bool StartListening();
+    virtual void StopListening();
+    virtual bool IsListening() const;
+    virtual bool IsConnected() const;
+    virtual void RunOnBackgroundThread();
+    virtual bool WaitUntilConnectionClosed(int timeout_ms = 5000);
+    virtual void ResetConnectionClosedEvent();
+    virtual void SignalQuit() override;
     
 private:
     void onIncomingCall(const std::string& peer_id, const std::string& sdp);
