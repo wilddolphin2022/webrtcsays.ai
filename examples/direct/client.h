@@ -51,7 +51,7 @@ using AddressReceivedCallback = std::function<void(const std::string& user_id,
 
 class DirectClient {
 public:
-    DirectClient(const std::string& user_id);
+    DirectClient(const Options& opts);
     ~DirectClient();
 
     bool connectToSignalingServer(const std::string& server_host, const std::string& server_port);
@@ -101,7 +101,7 @@ protected:
     std::shared_ptr<WebSocketClient> ws_client_;
     std::unique_ptr<rtc::Thread> network_thread_;
     std::string jwt_token_;
-    std::string user_id_;
+    Options opts_;
     bool connected_;
     bool registered_;
     std::string pending_room_;

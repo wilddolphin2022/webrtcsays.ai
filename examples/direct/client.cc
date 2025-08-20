@@ -35,7 +35,7 @@ DirectCallerClient::DirectCallerClient(const Options& opts)
         rtc::ThreadManager::Instance()->WrapCurrentThread();
     }
     owner_thread_ = rtc::Thread::Current();
-    signaling_client_ = std::make_unique<DirectClient>(opts.user_name);
+    signaling_client_ = std::make_unique<DirectClient>(opts);
     // Busy when caller already in an active call
     signaling_client_->setIsBusyCallback([this]() {
         // Only consider busy if there's an active call with remote description set
@@ -389,7 +389,7 @@ DirectCalleeClient::DirectCalleeClient(const Options& opts)
     // Parse the intended listening port from opts_.address instead of forcing 0
     std::string temp_ip;
     ParseIpAndPort(opts_.address, temp_ip, local_port_);
-    signaling_client_ = std::make_unique<DirectClient>(opts.user_name);
+    signaling_client_ = std::make_unique<DirectClient>(opts);
     // Provide busy predicate: callee is busy while a PeerConnection exists
     signaling_client_->setIsBusyCallback([this]() {
         // Only consider busy if there's an active call with remote description set
@@ -1007,8 +1007,8 @@ void DirectCalleeClient::OnConnectionChange(webrtc::PeerConnectionInterface::Pee
 // -----------------------------------------------------------------------------
 // DirectClient Implementation (restored)
 
-DirectClient::DirectClient(const std::string& user_id)
-    : user_id_(user_id), connected_(false), registered_(false) {
+DirectClient::DirectClient(const Options& opts)
+    : opts_(opts), connected_(false), registered_(false) {
     invite_received_callback_ = nullptr;
     waiting_received_callback_ = nullptr;
     // Create a dedicated network thread for WebSocket operations first
@@ -1030,7 +1030,7 @@ DirectClient::DirectClient(const std::string& user_id)
     ws_client_->set_reconnect_callback([this]() {
         // Re-register and re-publish address when socket comes back
         if (!saved_room_.empty()) {
-            ws_client_->send_message("REGISTER:" + user_id_ + ":" + saved_room_);
+            ws_client_->send_message("REGISTER:" + opts_.user_name + ":" + saved_room_);
         }
         if (!pending_address_.empty()) {
             ws_client_->send_message(pending_address_);
@@ -1100,6 +1100,8 @@ bool DirectClient::connectToSignalingServer(const std::string& server_host,
     cfg.host = server_host;
     cfg.port = std::to_string(std::stoi(server_port) + 1);
     cfg.use_ssl = true;
+    cfg.cert_file_path = opts_.webrtc_cert_path;
+    cfg.key_file_path = opts_.webrtc_key_path;
 
     if (!ws_client_->connect(cfg)) {
         APP_LOG(AS_ERROR) << "Failed to connect to WebSocket server";
@@ -1120,7 +1122,7 @@ bool DirectClient::connectToSignalingServer(const std::string& server_host,
 void DirectClient::registerWithRoom(const std::string& room_name) {
     if (!connected_) return;
     saved_room_ = room_name;
-    std::string msg = "REGISTER:" + user_id_ + ":" + room_name;
+    std::string msg = "REGISTER:" + opts_.user_name + ":" + room_name;
     ws_client_->send_message(msg);
     registered_ = true;
 }
@@ -1140,13 +1142,13 @@ bool DirectClient::requestUserList() {
 
 bool DirectClient::sendOffer(const std::string& target_peer_id, const std::string& sdp) {
     if (!connected_) return false;
-    std::string msg = std::string(Msg::kOfferPrefix) + user_id_ + ":" + sdp;
+    std::string msg = std::string(Msg::kOfferPrefix) + opts_.user_name + ":" + sdp;
     return ws_client_->send_message(msg);
 }
 
 bool DirectClient::sendAnswer(const std::string& target_peer_id, const std::string& sdp) {
     if (!connected_) return false;
-    std::string msg = std::string(Msg::kAnswerPrefix) + user_id_ + ":" + sdp;
+    std::string msg = std::string(Msg::kAnswerPrefix) + opts_.user_name + ":" + sdp;
     return ws_client_->send_message(msg);
 }
 
@@ -1272,7 +1274,7 @@ void DirectClient::handleProtocolMessage(const std::string& message) {
         if (second_colon != std::string::npos) {
             std::string peerId = message.substr(first_colon + 1, second_colon - first_colon - 1);
             std::string sdp = message.substr(second_colon + 1);
-            if (peerId == user_id_) {
+            if (peerId == opts_.user_name) {
                 return; // Ignore our own offer broadcast
             }
             APP_LOG(AS_INFO) << "DirectClient received OFFER from " << peerId;
@@ -1290,7 +1292,7 @@ void DirectClient::handleProtocolMessage(const std::string& message) {
         if (second_colon != std::string::npos) {
             std::string peerId = message.substr(first_colon + 1, second_colon - first_colon - 1);
             std::string sdp = message.substr(second_colon + 1);
-            if (peerId == user_id_) {
+            if (peerId == opts_.user_name) {
                 return; // Ignore our own answer broadcast
             }
             APP_LOG(AS_INFO) << "DirectClient received ANSWER from " << peerId;
@@ -1308,7 +1310,7 @@ void DirectClient::handleProtocolMessage(const std::string& message) {
         if (second_colon != std::string::npos) {
             std::string peerId = message.substr(first_colon + 1, second_colon - first_colon - 1);
             std::string candidate = message.substr(second_colon + 1);
-            if (peerId == user_id_) {
+            if (peerId == opts_.user_name) {
                 return; // Ignore our own ICE broadcast
             }
             if (ice_candidate_received_callback_) {
