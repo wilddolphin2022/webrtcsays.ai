@@ -108,18 +108,26 @@ bool DirectCallerClient::Connect() {
             this->onPeerAddressResolved(user_id, ip, port);
         });
 
-    // Try to connect to signaling server for name resolution
     std::string server_host; int server_port_int = 0;
     ParseIpAndPort(opts_.address, server_host, server_port_int);
+
+    bool is_local = (server_host == "127.0.0.1" || server_host == "localhost");
+    if (is_local && !opts_.target_name.empty()) {
+        fprintf(stderr, "Caller: local address, direct TCP to %s:%d\n",
+                server_host.c_str(), server_port_int);
+        bool ok = DirectCaller::Connect(server_host.c_str(), server_port_int);
+        fprintf(stderr, "Caller: Connect returned %s\n", ok ? "true" : "false");
+        return ok;
+    }
+
     if (!signaling_client_->connectToSignalingServer(server_host, std::to_string(server_port_int))) {
         APP_LOG(AS_WARNING) << "Failed to connect to signaling server, falling back to direct connection";
         
-        // Fall back to direct connection if target is specified
         if (!opts_.target_name.empty()) {
             APP_LOG(AS_INFO) << "DirectCallerClient: Attempting direct connection to " << opts_.target_name;
-            // For local testing, connect to localhost where callee is listening
-            std::string target_ip = "127.0.0.1";  // Local machine where callee is running
-            int target_port = 8888;  // Default port for DirectCallee
+            std::string target_ip;
+            int target_port = 0;
+            ParseIpAndPort(opts_.address, target_ip, target_port);
             
             APP_LOG(AS_INFO) << "DirectCallerClient: Connecting directly to " << target_ip << ":" << target_port;
             initiateWebRTCCall(target_ip, target_port);
@@ -497,8 +505,17 @@ bool DirectCalleeClient::StartListening() {
     std::string server_host; int server_port_int = 0;
     ParseIpAndPort(signaling_address, server_host, server_port_int);
 
-    auto try_register = [this, server_host, server_port_int]() {
-        const int kMaxAttempts = 30; // ~30 seconds with 1-s spacing
+    // Skip signaling server if it points to our own listener (would self-connect)
+    bool is_self = (server_host == "127.0.0.1" || server_host == "localhost" || server_host == "0.0.0.0")
+                   && server_port_int == local_port_;
+    if (is_self) {
+        fprintf(stderr, "Callee: signaling address matches own listener, skipping self-connect\n");
+    }
+
+    auto try_register = [this, server_host, server_port_int, is_self]() {
+        if (is_self) return;
+
+        const int kMaxAttempts = 30;
         int attempt = 0;
         while (!this->should_quit_.load() && attempt < kMaxAttempts) {
             if (signaling_client_->connectToSignalingServer(server_host, std::to_string(server_port_int))) {
@@ -506,7 +523,7 @@ bool DirectCalleeClient::StartListening() {
                 signaling_client_->registerWithRoom(opts_.room_name);
                 publishAddressToSignalingServer();
                 APP_LOG(AS_INFO) << "DirectCalleeClient registered with signaling server";
-                return; // success
+                return;
             }
             ++attempt;
             APP_LOG(AS_WARNING) << "Attempt " << attempt << " to connect to signaling server failed – retrying in 1 s";
