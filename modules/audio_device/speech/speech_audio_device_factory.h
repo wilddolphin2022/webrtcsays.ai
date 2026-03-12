@@ -23,6 +23,7 @@
 #include "modules/audio_device/audio_device_generic.h"
 
 #include "modules/third_party/whillats/src/whillats.h"
+#include "modules/third_party/whillats/src/talking_face.h"
 
 namespace webrtc {
 
@@ -65,6 +66,9 @@ class SpeechAudioDeviceFactory {
   static WhillatsTranscriber* whisper() { return _whisperDevice.get(); }
   static WhillatsLlama* llama() { return _llamaDevice.get(); }
 
+  static void SetTalkingFaceImage(const std::string& path);
+  static TalkingFace* talkingFace() { return _talkingFace.get(); }
+
   static WhillatsTTS* CreateWhillatsTTS(
     WhillatsSetAudioCallback &ttsCallback);
   static WhillatsTranscriber* CreateWhillatsTranscriber(
@@ -101,6 +105,7 @@ class SpeechAudioDeviceFactory {
   static std::unique_ptr<WhillatsLlama> _llamaDevice;
   // This is a tts device, to send to tts
   static std::unique_ptr<WhillatsTTS> _ttsDevice;
+  static std::unique_ptr<TalkingFace> _talkingFace;
 
   // Queue of text to speak
   static std::unique_ptr<TaskQueueBase, TaskQueueDeleter> _textToSpeakQueue;
