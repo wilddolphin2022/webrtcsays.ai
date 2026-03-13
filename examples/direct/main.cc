@@ -105,21 +105,23 @@ int main(int argc, char* argv[]) {
   if (opts.mode == "callee" or opts.mode == "both") {
     int session_count = 0;
     while (!g_shutdown) {
-      fprintf(stderr, "Callee loop entered, g_shutdown=%d\n", g_shutdown);
-      session_count++;
-      fprintf(stderr, "Starting callee session #%d\n", session_count);
-      
-      callee = std::make_shared<DirectCalleeClient>(opts);
-      
-      if (!callee->Initialize()) {
-        fprintf(stderr, "failed to initialize callee\n");
-        return 1;
+      if (!callee) {
+        fprintf(stderr, "Callee loop entered, g_shutdown=%d\n", g_shutdown);
+        session_count++;
+        fprintf(stderr, "Starting callee session #%d\n", session_count);
+
+        callee = std::make_shared<DirectCalleeClient>(opts);
+
+        if (!callee->Initialize()) {
+          fprintf(stderr, "failed to initialize callee\n");
+          return 1;
+        }
+        if (!callee->StartListening()) {
+          fprintf(stderr, "Failed to start listening\n");
+          return 1;
+        }
+        callee->RunOnBackgroundThread();
       }
-      if (!callee->StartListening()) {
-        fprintf(stderr, "Failed to start listening\n");
-        return 1;
-      }
-      callee->RunOnBackgroundThread();
 
       // Prepare new session and wait for CANCEL or Ctrl+C
       callee->ResetConnectionClosedEvent();
@@ -138,6 +140,13 @@ int main(int argc, char* argv[]) {
           break;
         }
       }
+
+      if (!g_shutdown) {
+        fprintf(stderr, "Keeping callee listener alive for next connection\n");
+        callee->ResetConnectionClosedEvent();
+        continue;
+      }
+
       // Signal quit immediately if shutdown is requested
       if (g_shutdown && callee) {
         fprintf(stderr, "Shutdown requested - signaling callee quit\n");

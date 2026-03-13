@@ -530,6 +530,9 @@ class DIRECT_API DirectCallee : public DirectPeer, public sigslot::has_slots<> {
  private:
   // Flag set by OnCancel() to suppress the next closed-event coming from ICE.
   bool ignore_next_close_event_ = false;
+  // Set when BYE/CANCEL initiates an orderly shutdown so socket-close callback
+  // does not trigger a second Disconnect() race.
+  std::atomic<bool> graceful_close_in_progress_{false};
 };
 
 class DIRECT_API DirectCaller : public DirectPeer {

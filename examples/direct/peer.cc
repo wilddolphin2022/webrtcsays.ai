@@ -804,11 +804,8 @@ void DirectPeer::OnSignalingChange(webrtc::PeerConnectionInterface::SignalingSta
     RTC_LOG(LS_INFO) << "PeerConnection SignalingState changed to: " 
                      << static_cast<int>(new_state) << " (" << state_name << ")";
     
-    // If the signaling state goes to Closed, also signal connection closed
-    if (new_state == webrtc::PeerConnectionInterface::kClosed) {
-        RTC_LOG(LS_INFO) << "PeerConnection signaling state is Closed. Signaling connection_closed_event.";
-        connection_closed_event_.Set();
-    }
+    // Do not signal connection_closed_event_ here; higher layers must only be
+    // notified after Disconnect() has finished clearing per-call state.
 }
 
 void DirectPeer::OnIceConnectionChange(webrtc::PeerConnectionInterface::IceConnectionState new_state) {
@@ -830,8 +827,7 @@ void DirectPeer::OnIceConnectionChange(webrtc::PeerConnectionInterface::IceConne
     if (new_state == webrtc::PeerConnectionInterface::kIceConnectionFailed ||
         new_state == webrtc::PeerConnectionInterface::kIceConnectionDisconnected ||
         new_state == webrtc::PeerConnectionInterface::kIceConnectionClosed) {
-        RTC_LOG(LS_INFO) << "Connection failed/disconnected/closed. Signaling connection_closed_event.";
-        connection_closed_event_.Set(); // Signal the event to restart the callee
+        RTC_LOG(LS_INFO) << "Connection failed/disconnected/closed. Waiting for Disconnect() to finish before signaling closed.";
     }
 }
 

@@ -328,14 +328,18 @@ void DirectApplication::Disconnect() {
     // Close() must be called on signaling thread, then we need to release the
     // reference on the same thread so that the destructor executes where
     // WebRTC expects it.
-
-    signaling_thread()->PostTask([this]() {
+    auto close_peer = [this]() {
       if (peer_connection_) {
         peer_connection_->Close();
         peer_connection_ = nullptr;  // release on signaling thread
         RTC_LOG(LS_INFO) << "Peer connection closed and released on signaling thread (Disconnect).";
       }
-    });
+    };
+    if (signaling_thread() && rtc::Thread::Current() != signaling_thread()) {
+      signaling_thread()->BlockingCall(close_peer);
+    } else {
+      close_peer();
+    }
 
     // after peer_connection_->Close();
     // Stop audio playout/recording on the *worker_thread* where the ADM was

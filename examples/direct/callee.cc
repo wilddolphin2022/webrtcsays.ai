@@ -221,6 +221,7 @@ void DirectCallee::OnNewConnection(rtc::AsyncListenSocket* listen_socket,
   }
 
   // No active call – proceed to accept this socket.
+  graceful_close_in_progress_.store(false);
   tcp_socket_.reset(current_client_socket);
 
   // Register callback on the specific socket for this connection
@@ -248,14 +249,34 @@ void DirectCallee::OnNewConnection(rtc::AsyncListenSocket* listen_socket,
       [this](rtc::AsyncPacketSocket* socket, int err) {
         RTC_LOG(LS_INFO) << "Wire‐level socket closed, err=" << err << ". Initiating Disconnect().";
 
-        // Ensure we tear down media etc. to stop heavy workers like Llama.
-        // Do this on the main thread (same choice as Disconnect()) to avoid threading issues.
+        // Defer reset until after callback dispatch completes to avoid
+        // re-entering socket callback bookkeeping while it is iterating.
+        if (network_thread()) {
+          network_thread()->PostTask([this, socket]() {
+            if (tcp_socket_.get() == socket) {
+              tcp_socket_.reset();
+            }
+          });
+        } else if (tcp_socket_.get() == socket) {
+          tcp_socket_.reset();
+        }
+
+        // For graceful BYE/CANCEL flows we already initiated peer teardown,
+        // so avoid a second Disconnect() that can race with in-flight shutdown.
+        if (graceful_close_in_progress_.exchange(false)) {
+          this->main_thread()->PostTask([self = this]() {
+            self->connection_closed_event_.Set();
+          });
+          return;
+        }
+
+        // Ensure we tear down media etc. to stop heavy workers like Llama, and
+        // only then wake waiters so the next caller doesn't race with a
+        // still-live peer_connection_.
         this->main_thread()->PostTask([self = this]() {
           self->Disconnect();
+          self->connection_closed_event_.Set();
         });
-
-        // Signal any waiters so higher-level loops can restart.
-        connection_closed_event_.Set();
       });
 
   RTC_LOG(LS_INFO) << "Callback registered for incoming messages on socket "
@@ -292,6 +313,8 @@ void DirectCallee::OnMessage(rtc::AsyncPacketSocket* socket,
     }
   } else if (message.rfind(Msg::kBye, 0) == 0) {
     SendMessage(StatusCodes::kOk);
+    graceful_close_in_progress_.store(true);
+    ignore_next_close_event_ = true;
     // Schedule a graceful teardown of the current PeerConnection so that the
     // callee immediately becomes available for a new incoming call.  We post
     // this task to the main thread to avoid blocking the network thread that
@@ -321,6 +344,8 @@ void DirectCallee::OnCancel(rtc::AsyncPacketSocket* socket) {
     RTC_LOG(LS_WARNING) << "Received CANCEL on an unexpected socket.";
     return;
   }
+
+  graceful_close_in_progress_.store(true);
 
   // Clear any per-call busy flags so the callee becomes immediately
   // available for follow-up calls (e.g., when a queued address is waiting
@@ -379,6 +404,17 @@ void DirectCallee::OnCancel(rtc::AsyncPacketSocket* socket) {
 
 void DirectCallee::OnClose(rtc::AsyncPacketSocket* socket) {
   RTC_LOG(LS_INFO) << "Callee socket closed";
+  if (network_thread()) {
+    network_thread()->PostTask([this, socket]() {
+      if (tcp_socket_.get() == socket) {
+        tcp_socket_.reset();
+      }
+    });
+    return;
+  }
+  if (tcp_socket_.get() == socket) {
+    tcp_socket_.reset();
+  }
 }
 
 bool DirectCallee::SendMessage(const std::string& message) {

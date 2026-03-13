@@ -601,38 +601,38 @@ void DirectCalleeClient::ResetConnectionClosedEvent() {
 }
 
 void DirectCalleeClient::SignalQuit() {
-    // Fire-and-forget cleanup so the main thread can continue immediately.
-    auto self = shared_from_this();
-    std::thread([self]() mutable {
-        APP_LOG(AS_INFO) << "DirectCalleeClient: Async quit starting";
+    APP_LOG(AS_INFO) << "DirectCalleeClient: synchronous quit starting";
+    shutting_down_.store(true);
+    should_quit_.store(true);
+    listening_ = false;
 
-        // Close sockets on the correct (network) thread to avoid race with
-        // rtc::PhysicalSocketServer internals.
-        if (self->tcp_socket_) {
-            auto s = self->tcp_socket_.release();
-            self->network_thread()->PostTask([s]() {
-                s->Close();
-                delete s;
-            });
+    auto close_tcp = [this]() {
+        if (tcp_socket_) {
+            auto* s = tcp_socket_.release();
+            s->Close();
+            delete s;
         }
+    };
+    if (network_thread() && !network_thread()->IsCurrent()) {
+        network_thread()->BlockingCall(close_tcp);
+    } else {
+        close_tcp();
+    }
 
-        if (self->listen_socket_) {
-            auto ls = std::move(self->listen_socket_);
-            self->network_thread()->PostTask([ls = std::move(ls)]() mutable {
-                ls.reset();
-            });
+    auto close_listener = [this]() {
+        if (listen_socket_) {
+            listen_socket_.reset();
         }
+    };
+    if (network_thread() && !network_thread()->IsCurrent()) {
+        network_thread()->BlockingCall(close_listener);
+    } else {
+        close_listener();
+    }
 
-        // Heavy WebRTC teardown runs on the signaling thread; no need to wait.
-        self->signaling_thread()->PostTask([self]() {
-            self->DirectApplication::Disconnect();
-        });
-
-        // Signal any WaitUntilConnectionClosed() callers right away.
-        self->connection_closed_event_.Set();
-
-        APP_LOG(AS_INFO) << "DirectCalleeClient: Async quit posted";
-    }).detach();
+    DirectApplication::Disconnect();
+    connection_closed_event_.Set();
+    APP_LOG(AS_INFO) << "DirectCalleeClient: synchronous quit complete";
 }
 
 // -------------------------------------------------------------------
