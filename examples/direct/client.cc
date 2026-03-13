@@ -971,14 +971,16 @@ void DirectCalleeClient::OnIceCandidate(const webrtc::IceCandidateInterface* can
     APP_LOG(AS_INFO) << "DirectCalleeClient: Sending ICE candidate: " << json_candidate;
 
     const std::string target_id = !active_peer_id_.empty() ? active_peer_id_ : opts_.target_name;
-    if (signaling_client_) {
+    if (signaling_client_ && signaling_client_->isConnected()) {
         signaling_client_->sendIceCandidate(target_id, json_candidate);
     } else {
-        APP_LOG(AS_ERROR) << "DirectCalleeClient: signaling_client_ is null - cannot send ICE candidate";
+        // Fallback: send as raw text string over the local TCP socket to signal_bridge
+        std::string raw_ice = "ICE:" + std::to_string(mline_index) + ":" + sdp;
+        SendMessage(raw_ice);
     }
 
     // Optionally still call base to keep internal bookkeeping but suppress raw socket send
-    // We skip DirectPeer::OnIceCandidate to avoid SendMessage use.
+    // We skip DirectPeer::OnIceCandidate to avoid SendMessage use unless fallback triggers.
 }
 
 void DirectCalleeClient::OnIceConnectionChange(webrtc::PeerConnectionInterface::IceConnectionState new_state) {

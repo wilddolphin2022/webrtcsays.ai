@@ -156,19 +156,22 @@ static std::string sanitizeForSpeech(std::string text) {
 }
 
 static std::string shortenForSpeech(std::string text) {
-  // Keep spoken output concise: first sentence or at most ~140 chars.
-  size_t punct = text.find_first_of(".!?");
-  if (punct != std::string::npos && punct + 1 >= 8) {
-    text = text.substr(0, punct + 1);
-  }
+  // Keep spoken output concise: up to ~140 chars, ending at a sentence boundary if possible.
   constexpr size_t kMaxChars = 140;
   if (text.size() > kMaxChars) {
-    text = text.substr(0, kMaxChars);
-    size_t cut = text.find_last_of(" ,;");
+    std::string short_text = text.substr(0, kMaxChars);
+    size_t cut = short_text.find_last_of(".!?");
     if (cut != std::string::npos && cut >= 16) {
-      text = text.substr(0, cut);
+      short_text = short_text.substr(0, cut + 1);
+    } else {
+      cut = short_text.find_last_of(" ,;");
+      if (cut != std::string::npos && cut >= 16) {
+        short_text = short_text.substr(0, cut) + "...";
+      } else {
+        short_text += "...";
+      }
     }
-    text += "...";
+    text = short_text;
   }
   auto is_not_space = [](unsigned char ch) { return !std::isspace(ch); };
   text.erase(text.begin(), std::find_if(text.begin(), text.end(), is_not_space));
@@ -189,6 +192,16 @@ void llamaResponseCallback(bool success, const char* response, void* user_data) 
   RTC_LOG(LS_INFO) << "Llama response via callback: " << response;
   if(success) {
     std::string text(response ? response : "");
+
+    // Extract only the assistant's turn if Llama hallucinates prompt history
+    size_t assistant_pos = text.rfind("<|im_start|>assistant");
+    if (assistant_pos != std::string::npos) {
+        text = text.substr(assistant_pos + std::strlen("<|im_start|>assistant"));
+    }
+    size_t next_user = text.find("<|im_start|>user");
+    if (next_user != std::string::npos) {
+        text = text.substr(0, next_user);
+    }
 
     size_t think_start = text.find("<think>");
     size_t think_end = text.find("</think>");
@@ -548,6 +561,11 @@ bool WhisperAudioDevice::RecThreadProcess() {
             _recordingBuffer,
             _recordingFramesIn10MS * sizeof(short),
             int8_t(0));
+
+        auto* face = SpeechAudioDeviceFactory::talkingFace();
+        if (face) {
+          face->feedAudio(reinterpret_cast<const int16_t*>(_recordingBuffer), _recordingFramesIn10MS);
+        }
 
         mutex_.Unlock();
         _ptrAudioBuffer->SetRecordedBuffer(_recordingBuffer, _recordingFramesIn10MS);
