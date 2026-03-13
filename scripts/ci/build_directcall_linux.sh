@@ -136,9 +136,7 @@ if [ -f ".gn" ]; then
   python3 - <<'PY'
 from pathlib import Path
 p = Path(".gn")
-text = p.read_text()
-text = text.replace("build_dotfile_settings.exec_script_whitelist +", "[] +")
-lines = text.splitlines()
+lines = p.read_text().splitlines()
 lines = [ln for ln in lines if not ln.strip().startswith("export_compile_commands")]
 p.write_text("\n".join(lines) + "\n")
 PY
