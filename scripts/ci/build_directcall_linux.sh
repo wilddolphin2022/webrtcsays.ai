@@ -33,6 +33,12 @@ if [ -f ".gitmodules" ]; then
   git submodule update --init --recursive modules/third_party/whillats
 fi
 
+if [ ! -f "build/config/BUILDCONFIG.gn" ]; then
+  echo "[build] build/config/BUILDCONFIG.gn missing; cloning chromium build repo"
+  rm -rf build
+  git clone --depth=1 https://chromium.googlesource.com/chromium/src/build.git build
+fi
+
 if [ -x "build/install-build-deps.sh" ]; then
   ./build/install-build-deps.sh --no-chromeos-fonts || true
 fi
