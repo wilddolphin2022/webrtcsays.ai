@@ -100,6 +100,13 @@ if [ ! -f "third_party/perfetto/include/perfetto/tracing/BUILD.gn" ]; then
   git clone --depth=1 https://android.googlesource.com/platform/external/perfetto third_party/perfetto
 fi
 
+if [ ! -f "third_party/abseil-cpp/BUILD.gn" ]; then
+  echo "[build] abseil-cpp missing; cloning chromium abseil-cpp repo"
+  rm -rf third_party/abseil-cpp
+  mkdir -p third_party
+  git clone --depth=1 https://chromium.googlesource.com/chromium/src/third_party/abseil-cpp third_party/abseil-cpp
+fi
+
 if [ -x "build/install-build-deps.sh" ]; then
   ./build/install-build-deps.sh --no-chromeos-fonts || true
 fi
