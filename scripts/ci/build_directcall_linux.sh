@@ -92,6 +92,11 @@ fi
 if ! rg "^use_libcxx_modules" "build_overrides/build.gni" >/dev/null 2>&1; then
   echo "use_libcxx_modules = false" >> build_overrides/build.gni
 fi
+for v in host_toolchain_is_msan host_toolchain_is_asan host_toolchain_is_tsan host_toolchain_is_ubsan; do
+  if ! rg "^${v}\\s*=" "build_overrides/build.gni" >/dev/null 2>&1; then
+    echo "${v} = false" >> build_overrides/build.gni
+  fi
+done
 
 if [ ! -f "third_party/perfetto/include/perfetto/tracing/BUILD.gn" ]; then
   echo "[build] perfetto missing; cloning chromium perfetto repo"
