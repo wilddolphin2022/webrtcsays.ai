@@ -131,6 +131,10 @@ build_dotfile_settings = {
 EOF
 fi
 
+if [ -d ".git" ]; then
+  git checkout -- .gn || true
+fi
+
 if [ -f ".gn" ]; then
   cp ".gn" ".gn.ci.bak"
   python3 - <<'PY'
