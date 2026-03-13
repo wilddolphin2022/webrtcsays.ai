@@ -63,6 +63,10 @@ if [ -x "build/install-build-deps.sh" ]; then
   ./build/install-build-deps.sh --no-chromeos-fonts || true
 fi
 
+if [ -f "build/linux/sysroot_scripts/install-sysroot.py" ]; then
+  python3 build/linux/sysroot_scripts/install-sysroot.py --arch=amd64 || true
+fi
+
 if [ -f "tools/clang/scripts/update.py" ]; then
   python3 tools/clang/scripts/update.py
 else
