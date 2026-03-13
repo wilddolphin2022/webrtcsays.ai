@@ -65,6 +65,14 @@ generate_location_tags = true
 EOF
 fi
 
+if [ ! -f "build_overrides/protobuf.gni" ]; then
+  echo "[build] creating fallback build_overrides/protobuf.gni"
+  mkdir -p build_overrides
+  cat > build_overrides/protobuf.gni <<'EOF'
+# Chromium standalone fallback: no protobuf overrides.
+EOF
+fi
+
 if [ -x "build/install-build-deps.sh" ]; then
   ./build/install-build-deps.sh --no-chromeos-fonts || true
 fi
