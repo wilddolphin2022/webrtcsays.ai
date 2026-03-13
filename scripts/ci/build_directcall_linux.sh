@@ -18,6 +18,7 @@ sudo apt-get install -y \
   ca-certificates \
   clang \
   cmake \
+  curl \
   git \
   libasound2-dev \
   libtool \
@@ -111,7 +112,21 @@ elif command -v gn >/dev/null 2>&1; then
   echo "[build] using gn from PATH"
 else
   echo "[build] gn not found in depot_tools, PATH, or buildtools/linux64/gn"
-  exit 1
+  echo "[build] downloading prebuilt gn binary"
+  curl -fsSL "https://chrome-infra-packages.appspot.com/dl/gn/gn/linux-amd64/+/latest" -o /tmp/gn-linux-amd64.zip
+  mkdir -p /tmp/gn-linux-amd64
+  unzip -oq /tmp/gn-linux-amd64.zip -d /tmp/gn-linux-amd64
+  chmod +x /tmp/gn-linux-amd64/gn
+  GN_BIN="/tmp/gn-linux-amd64/gn"
+fi
+
+if ! "${GN_BIN}" --version >/dev/null 2>&1; then
+  echo "[build] selected gn binary is not runnable; downloading prebuilt gn"
+  curl -fsSL "https://chrome-infra-packages.appspot.com/dl/gn/gn/linux-amd64/+/latest" -o /tmp/gn-linux-amd64.zip
+  mkdir -p /tmp/gn-linux-amd64
+  unzip -oq /tmp/gn-linux-amd64.zip -d /tmp/gn-linux-amd64
+  chmod +x /tmp/gn-linux-amd64/gn
+  GN_BIN="/tmp/gn-linux-amd64/gn"
 fi
 
 "${GN_BIN}" gen "${OUT_DIR}" --args='target_os="linux" is_debug=false rtc_include_opus=true rtc_build_examples=true rtc_enable_symbol_export=true rtc_use_speech_audio_devices=true use_custom_libcxx=false'
