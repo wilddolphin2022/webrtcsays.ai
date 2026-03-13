@@ -97,6 +97,9 @@ for v in host_toolchain_is_msan host_toolchain_is_asan host_toolchain_is_tsan ho
     echo "${v} = false" >> build_overrides/build.gni
   fi
 done
+if ! rg "^not_fuzzed_add_configs\\s*=" "build_overrides/build.gni" >/dev/null 2>&1; then
+  echo "not_fuzzed_add_configs = []" >> build_overrides/build.gni
+fi
 
 if [ ! -f "third_party/perfetto/include/perfetto/tracing/BUILD.gn" ]; then
   echo "[build] perfetto missing; cloning chromium perfetto repo"
