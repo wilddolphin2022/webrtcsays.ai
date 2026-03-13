@@ -12,15 +12,19 @@ echo "[build] root: ${ROOT_DIR}"
 export DEBIAN_FRONTEND=noninteractive
 sudo apt-get update
 sudo apt-get install -y \
+  autoconf \
+  automake \
   build-essential \
   ca-certificates \
   clang \
   cmake \
   git \
   libasound2-dev \
+  libtool \
   libgtk-3-dev \
   libxtst6 \
   lld \
+  m4 \
   ninja-build \
   pkg-config \
   python3 \
