@@ -56,6 +56,13 @@ if [ ! -f "testing/test.gni" ]; then
   git clone --depth=1 https://chromium.googlesource.com/chromium/src/testing.git testing
 fi
 
+if [ ! -f "buildtools/third_party/libc++/BUILD.gn" ]; then
+  echo "[build] buildtools libc++ missing; cloning chromium libc++ repo"
+  rm -rf buildtools/third_party/libc++
+  mkdir -p buildtools/third_party
+  git clone --depth=1 https://chromium.googlesource.com/chromium/src/buildtools/third_party/libc++ buildtools/third_party/libc++
+fi
+
 if [ ! -f "build/config/gclient_args.gni" ]; then
   echo "[build] creating fallback build/config/gclient_args.gni"
   mkdir -p build/config
