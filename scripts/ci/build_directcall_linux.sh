@@ -147,7 +147,7 @@ if ! "${GN_BIN}" --version >/dev/null 2>&1; then
   GN_BIN="/tmp/gn-linux-amd64/gn"
 fi
 
-"${GN_BIN}" gen "${OUT_DIR}" --args='target_os="linux" is_debug=false rtc_include_opus=true rtc_build_examples=true rtc_enable_symbol_export=true rtc_use_speech_audio_devices=true use_custom_libcxx=false'
+"${GN_BIN}" gen "${OUT_DIR}" --args='target_os="linux" is_debug=false rtc_include_opus=true rtc_build_examples=true rtc_enable_symbol_export=true rtc_use_speech_audio_devices=true use_custom_libcxx=false enable_js_protobuf=false'
 ninja -C "${OUT_DIR}" directcall
 
 rm -rf "${DIST_DIR}"
