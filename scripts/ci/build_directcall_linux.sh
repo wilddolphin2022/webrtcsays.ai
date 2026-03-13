@@ -145,6 +145,18 @@ PY
   echo "[build] patched .gn for CI gn compatibility"
 fi
 
+if [ -f "BUILD.gn" ] && rg '^\s*"sdk",\s*$' "BUILD.gn" >/dev/null 2>&1; then
+  cp "BUILD.gn" "BUILD.gn.ci.bak"
+  python3 - <<'PY'
+from pathlib import Path
+p = Path("BUILD.gn")
+lines = p.read_text().splitlines()
+lines = [ln for ln in lines if ln.strip() != '"sdk",']
+p.write_text("\n".join(lines) + "\n")
+PY
+  echo "[build] patched BUILD.gn to skip sdk aggregate target"
+fi
+
 cmake -S "${WHILLATS_DIR}" -B "${WHILLATS_BUILD_DIR}" \
   -DCMAKE_BUILD_TYPE=Release \
   -DGGML_CUDA=OFF \
