@@ -676,7 +676,12 @@ void DirectCalleeClient::setupWebRTCListener() {
     // Ensure a local video source is ready so the SDP answer advertises sendrecv.
     if (opts_.video) {
         if (!video_source_) {
-            if (!opts_.camera.empty()) {
+            // When using a talking-face avatar, defer video source creation
+            // until the offer/answer path so the PeerConnection attaches the
+            // avatar source instead of seeding an Echo source here.
+            if (!opts_.talking_face.empty()) {
+                APP_LOG(AS_INFO) << "Callee will create talking-face source during answer setup";
+            } else if (!opts_.camera.empty()) {
                 
                 if (rtc::Thread::Current() == signaling_thread()) {
                     video_source_ = CreateCameraVideoSource(this, opts_);
@@ -686,7 +691,7 @@ void DirectCalleeClient::setupWebRTCListener() {
                     });
                 }                
             }
-            if (!video_source_) {
+            if (!video_source_ && opts_.talking_face.empty()) {
                 APP_LOG(AS_INFO) << "Callee fallback to synthetic video source";
                 if (rtc::Thread::Current() == signaling_thread()) {
                     auto src = rtc::make_ref_counted<webrtc::EchoVideoTrackSource>();

@@ -586,7 +586,9 @@ bool DirectApplication::CreatePeerConnection() {
   }
 
   if (!opts_.talking_face.empty()) {
-    webrtc::SpeechAudioDeviceFactory::SetTalkingFaceImage(opts_.talking_face);
+    if (!webrtc::SpeechAudioDeviceFactory::talkingFace()) {
+      webrtc::SpeechAudioDeviceFactory::SetTalkingFaceImage(opts_.talking_face);
+    }
   }
 #endif // WEBRTC_SPEECH_DEVICES
 

@@ -337,7 +337,7 @@ Options parseOptions(const std::vector<std::string>& args) {
              opts.camera = config_json["camera"].asString();
         }
         if (config_json.isMember("talking_face") && config_json["talking_face"].isString()) {
-             opts.talking_face = config_json["talking_face"].asString();
+             opts.talking_face = expandHomePath(config_json["talking_face"].asString());
              opts.video = true;
         }
         if (config_json.isMember("bonjour_name") && config_json["bonjour_name"].isString()) {
@@ -467,7 +467,7 @@ Options parseOptions(const std::vector<std::string>& args) {
     } else if (arg.find("--camera=") == 0) {
         opts.camera = stripQuotes(arg.substr(9));
     } else if (arg.find("--talking_face=") == 0) {
-        opts.talking_face = stripQuotes(arg.substr(15));
+        opts.talking_face = expandHomePath(stripQuotes(arg.substr(15)));
         opts.video = true;
     } else if (arg.find("--bonjour_name=") == 0) {
         opts.bonjour_name = arg.substr(15);
