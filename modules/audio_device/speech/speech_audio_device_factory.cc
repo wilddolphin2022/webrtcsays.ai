@@ -128,6 +128,16 @@ void SpeechAudioDeviceFactory::SetTalkingFaceImage(const std::string& path) {
   }
 }
 
+void SpeechAudioDeviceFactory::SetTalkingFaceImageFromMemory(const uint8_t* data, int size, int dummy1, int dummy2) {
+  _talkingFace = std::make_unique<TalkingFace>();
+  if (!_talkingFace->loadImageFromMemory(data, size, 0, 0)) {
+    RTC_LOG(LS_ERROR) << "Failed to load talking face image from memory";
+    _talkingFace.reset();
+  } else {
+    RTC_LOG(LS_INFO) << "Talking face loaded from memory";
+  }
+}
+
 void SpeechAudioDeviceFactory::SetYuvFilename(absl::string_view yuv_filename, int width, int height) {
   _yuvFilename = yuv_filename;
   load_yuv(_yuvData, _yuvFilename.c_str(), width, height);

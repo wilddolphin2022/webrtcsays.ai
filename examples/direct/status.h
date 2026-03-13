@@ -64,6 +64,9 @@ inline constexpr const char kAddressPrefix[] = "ADDRESS:";   // targeted ADDRESS
 inline constexpr const char kUsers[]       = "USERS";    // broadcast USERS
 inline constexpr const char kUsersPrefix[] = "USERS:";   // targeted USERS:<user1>,<user2>
 
+// Talking face image upload
+inline constexpr const char kFacePrefix[]  = "FACE:";
+
 } // namespace Msg
 
 #endif // EXAMPLES_DIRECT_STATUS_H_ 

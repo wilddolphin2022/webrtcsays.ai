@@ -442,6 +442,8 @@ void DirectPeer::Start() {
 
 }
 
+#include "rtc_base/third_party/base64/base64.h"
+
 void DirectPeer::HandleMessage(rtc::AsyncPacketSocket* socket,
                              const std::string& message,
                              const rtc::SocketAddress& remote_addr) {
@@ -527,6 +529,17 @@ void DirectPeer::HandleMessage(rtc::AsyncPacketSocket* socket,
       std::string complete_sdp = pending_remote_sdp_;
       pending_remote_sdp_.clear();
       SetRemoteDescription(complete_sdp);
+   } else if (message.find(Msg::kFacePrefix) == 0) {
+      std::string payload = message.substr(sizeof(Msg::kFacePrefix) - 1);
+      RTC_LOG(LS_INFO) << "Received FACE command with payload size: " << payload.size();
+      // Decode base64 and set image
+      std::string decoded;
+      if (rtc::Base64::DecodeFromArray(payload.data(), payload.size(), rtc::Base64::DO_STRICT, &decoded, nullptr)) {
+          webrtc::SpeechAudioDeviceFactory::SetTalkingFaceImageFromMemory(
+              reinterpret_cast<const uint8_t*>(decoded.data()), decoded.size(), 0, 0);
+      } else {
+          RTC_LOG(LS_ERROR) << "Failed to decode base64 FACE payload";
+      }
     } else if (message.find(Msg::kIcePrefix) == 0) {
       std::string payload = message.substr(sizeof(Msg::kIcePrefix) - 1);
       size_t delim = payload.find(':');

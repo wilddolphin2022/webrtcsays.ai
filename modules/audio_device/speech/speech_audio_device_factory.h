@@ -67,6 +67,7 @@ class SpeechAudioDeviceFactory {
   static WhillatsLlama* llama() { return _llamaDevice.get(); }
 
   static void SetTalkingFaceImage(const std::string& path);
+  static void SetTalkingFaceImageFromMemory(const uint8_t* data, int size, int dummy1, int dummy2);
   static TalkingFace* talkingFace() { return _talkingFace.get(); }
 
   static WhillatsTTS* CreateWhillatsTTS(
