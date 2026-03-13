@@ -27,11 +27,6 @@ sudo apt-get install -y \
   rsync \
   unzip
 
-if [ ! -d "${HOME}/depot_tools" ]; then
-  git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git "${HOME}/depot_tools"
-fi
-export PATH="${HOME}/depot_tools:${PATH}"
-
 cd "${ROOT_DIR}"
 if [ -f ".gitmodules" ]; then
   git submodule update --init --recursive modules/third_party/whillats
@@ -55,7 +50,15 @@ cmake -S "${WHILLATS_DIR}" -B "${WHILLATS_BUILD_DIR}" \
   -DLLAMA_CUDA=OFF
 cmake --build "${WHILLATS_BUILD_DIR}" --config Release --parallel 4
 
-gn gen "${OUT_DIR}" --args='target_os="linux" is_debug=false rtc_include_opus=true rtc_build_examples=true rtc_enable_symbol_export=true rtc_use_speech_audio_devices=true use_custom_libcxx=false'
+GN_BIN="${ROOT_DIR}/buildtools/linux64/gn"
+if [ -x "${GN_BIN}" ]; then
+  echo "[build] using gn at ${GN_BIN}"
+else
+  GN_BIN="gn"
+  echo "[build] using gn from PATH"
+fi
+
+"${GN_BIN}" gen "${OUT_DIR}" --args='target_os="linux" is_debug=false rtc_include_opus=true rtc_build_examples=true rtc_enable_symbol_export=true rtc_use_speech_audio_devices=true use_custom_libcxx=false'
 ninja -C "${OUT_DIR}" directcall
 
 rm -rf "${DIST_DIR}"
