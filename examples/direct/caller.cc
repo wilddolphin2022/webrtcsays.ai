@@ -370,12 +370,10 @@ void DirectCaller::SendHelloWithRetry() {
         return;
     }
 
-    // Send HELLO now.
     if (SendMessage(Msg::kHello)) {
-        RTC_LOG(LS_INFO) << "HELLO attempt " << (hello_attempts_ + 1)
-                         << " sent successfully";
+        fprintf(stderr, "Caller: HELLO attempt %d sent\n", hello_attempts_ + 1);
     } else {
-        RTC_LOG(LS_WARNING) << "Failed to send HELLO attempt " << (hello_attempts_ + 1);
+        fprintf(stderr, "Caller: HELLO attempt %d FAILED to send\n", hello_attempts_ + 1);
     }
 
     ++hello_attempts_;

@@ -98,7 +98,8 @@ struct Options {
     std::string turns{};
     std::string vpn{};
     std::string camera{};
-    std::string bonjour_name{}; // Name for Bonjour advertisement/discovery
+    std::string talking_face{}; // Path to avatar image for animated face
+    std::string bonjour_name{};
     std::string user_name{}; // Name of this user (for registration)
     std::string target_name{}; // Name of user to call (for caller mode)
     std::string room_name{}; // Room name to join

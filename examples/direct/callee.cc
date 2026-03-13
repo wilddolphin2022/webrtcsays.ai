@@ -195,10 +195,10 @@ bool DirectCallee::StartListening() {
 
 void DirectCallee::OnNewConnection(rtc::AsyncListenSocket* listen_socket,
                                    rtc::AsyncPacketSocket* new_socket) {
-  RTC_LOG(LS_INFO) << "New connection received";
+  fprintf(stderr, "Callee: new TCP connection received\n");
 
   if (!new_socket) {
-    RTC_LOG(LS_ERROR) << "New socket is null";
+    fprintf(stderr, "Callee: ERROR - new socket is null\n");
     return;
   }
 
@@ -212,10 +212,12 @@ void DirectCallee::OnNewConnection(rtc::AsyncListenSocket* listen_socket,
   // If we are already in an active call (peer_connection_ or an existing
   // tcp_socket_), politely reject the new connection with "486 Busy Here"
   if (this->peer_connection_ || (tcp_socket_ && tcp_socket_.get() != nullptr)) {
+    fprintf(stderr, "Callee: rejecting connection - already busy (pc=%d, tcp=%d)\n",
+            this->peer_connection_ != nullptr, tcp_socket_ != nullptr);
     std::string busy_msg = StatusCodes::kBusyHere;
     current_client_socket->Send(busy_msg.c_str(), busy_msg.size(), rtc::PacketOptions());
     current_client_socket->Close();
-    return; // keep existing call intact
+    return;
   }
 
   // No active call – proceed to accept this socket.
@@ -264,13 +266,11 @@ void DirectCallee::OnMessage(rtc::AsyncPacketSocket* socket,
                              const unsigned char* data,
                              size_t len,
                              const rtc::SocketAddress& remote_addr) {
-  // Quick log of incoming message (up to 127 chars)
   char bufLog[128];
   size_t cnt = len < sizeof(bufLog) - 1 ? len : sizeof(bufLog) - 1;
   memcpy(bufLog, data, cnt);
   bufLog[cnt] = '\0';
-  RTC_LOG(LS_INFO) << "Callee received: " << bufLog << " from "
-                   << remote_addr.ToString();
+  fprintf(stderr, "Callee: received msg \"%s\" (%zu bytes)\n", bufLog, len);
 
   std::string message(reinterpret_cast<const char*>(data), len);
   // Use prefix match to be tolerant of combined packets

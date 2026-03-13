@@ -33,6 +33,9 @@
 #include "option.h"
 #include "direct.h"
 #include "pc/test/fake_video_track_source.h"
+#include "api/video/i420_buffer.h"
+#include "modules/audio_device/speech/speech_audio_device_factory.h"
+#include "modules/third_party/whillats/src/talking_face.h"
 #include "test/test_video_capturer.h"
 #if !defined(WEBRTC_IOS) && !defined(WEBRTC_MAC)
 #include "test/platform_video_capturer.h"
@@ -122,6 +125,73 @@ static bool ParseCameraSpec(const std::string& spec,
 }
 
 class DirectPeer; // forward declaration
+
+// Animated avatar driven by TTS audio energy
+class TalkingFaceRenderer {
+ public:
+  TalkingFaceRenderer(rtc::scoped_refptr<webrtc::FakeVideoTrackSource> src,
+                      TalkingFace* face, int fps = 30)
+      : src_(src), face_(face), interval_ms_(1000 / fps), running_(false) {}
+
+  ~TalkingFaceRenderer() { Stop(); }
+
+  void Start() {
+    if (running_) return;
+    running_ = true;
+    thread_ = std::thread([this]() {
+      while (running_) {
+        YUVData yuv;
+        if (face_->renderFrame(yuv)) {
+          auto i420 = webrtc::I420Buffer::Create(yuv.width, yuv.height);
+          memcpy(i420->MutableDataY(), yuv.y.get(), yuv.y_size);
+          memcpy(i420->MutableDataU(), yuv.u.get(), yuv.uv_size);
+          memcpy(i420->MutableDataV(), yuv.v.get(), yuv.uv_size);
+          webrtc::VideoFrame frame =
+              webrtc::VideoFrame::Builder()
+                  .set_video_frame_buffer(i420)
+                  .set_timestamp_us(rtc::TimeMicros())
+                  .build();
+          src_->InjectFrame(frame);
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(interval_ms_));
+      }
+    });
+  }
+
+  void Stop() {
+    running_ = false;
+    if (thread_.joinable()) thread_.join();
+  }
+
+ private:
+  rtc::scoped_refptr<webrtc::FakeVideoTrackSource> src_;
+  TalkingFace* face_;
+  int interval_ms_;
+  std::atomic<bool> running_;
+  std::thread thread_;
+};
+
+rtc::scoped_refptr<webrtc::VideoTrackSourceInterface>
+CreateTalkingFaceVideoSource(DirectPeer* owner) {
+  using namespace webrtc;
+
+  auto* face = SpeechAudioDeviceFactory::talkingFace();
+  if (!face) return nullptr;
+
+  face->setOutputSize(640, 480);
+
+  auto track_source = FakeVideoTrackSource::Create(false);
+  track_source->SetState(MediaSourceInterface::kLive);
+
+  auto* renderer = new TalkingFaceRenderer(track_source, face, 24);
+  renderer->Start();
+
+  // renderer leaked intentionally; lives for the process lifetime
+  (void)renderer;
+
+  RTC_LOG(LS_INFO) << "TalkingFace video source created (640x480@24fps)";
+  return track_source;
+}
 
 rtc::scoped_refptr<webrtc::VideoTrackSourceInterface>
 CreateCameraVideoSource(DirectPeer* owner, const Options& opts) {
@@ -625,8 +695,10 @@ void DirectPeer::SetRemoteDescription(const std::string& sdp) {
 
                     // Create a video track source for the callee if video is enabled.
                     if (opts_.video) {
-                        // Prefer camera when specified.
-                        if (!opts_.camera.empty()) {
+                        if (!opts_.talking_face.empty()) {
+                            video_source_ = CreateTalkingFaceVideoSource(this);
+                        }
+                        if (!video_source_ && !opts_.camera.empty()) {
                             video_source_ = CreateCameraVideoSource(this, opts_);
                         }
                         if (!video_source_) {

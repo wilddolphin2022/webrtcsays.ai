@@ -189,7 +189,8 @@ Options parseOptions(const std::vector<std::string>& args) {
       "  --turns=<ip,username,password>     Secured turn server address, e.g. \n"
       "   'turns:global.relay.metered.ca:443?transport=tcp,<username>,<password>'\n"
       "  --vpn=<interface_name>             Specify VPN interface name\n" // Added VPN help
-      "  --camera=<device_name>             Specify camera device name\n" // Added camera help
+      "  --camera=<device_name>             Specify camera device name\n"
+      "  --talking_face=<image_path>        Avatar image for animated AI face\n"
       "  --bonjour_name=<name>              Specify bonjour name\n" // Added bonjour name resolution
       "  --user_name=<name>                 Your user name for registration\n"
       "  --target_name=<name>               Target user name to call (caller mode)\n"
@@ -332,8 +333,12 @@ Options parseOptions(const std::vector<std::string>& args) {
              opts.vpn = config_json["vpn"].asString();
         }
         if (config_json.isMember("camera") && config_json["camera"].isString()) {
-             RTC_LOG(LS_INFO) << "Config camera: " << config_json["camera"].asString(); // Log value
+             RTC_LOG(LS_INFO) << "Config camera: " << config_json["camera"].asString();
              opts.camera = config_json["camera"].asString();
+        }
+        if (config_json.isMember("talking_face") && config_json["talking_face"].isString()) {
+             opts.talking_face = config_json["talking_face"].asString();
+             opts.video = true;
         }
         if (config_json.isMember("bonjour_name") && config_json["bonjour_name"].isString()) {
              RTC_LOG(LS_INFO) << "Config bonjour_name: " << config_json["bonjour_name"].asString();
@@ -460,7 +465,10 @@ Options parseOptions(const std::vector<std::string>& args) {
     } else if (arg.find("--vpn=") == 0) { 
         opts.vpn = arg.substr(6);
     } else if (arg.find("--camera=") == 0) {
-        opts.camera = stripQuotes(arg.substr(9)); // length of "--camera=" is 9
+        opts.camera = stripQuotes(arg.substr(9));
+    } else if (arg.find("--talking_face=") == 0) {
+        opts.talking_face = stripQuotes(arg.substr(15));
+        opts.video = true;
     } else if (arg.find("--bonjour_name=") == 0) {
         opts.bonjour_name = arg.substr(15);
     } else if (arg.find("--user_name=") == 0) {

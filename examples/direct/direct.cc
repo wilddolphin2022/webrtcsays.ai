@@ -584,6 +584,10 @@ bool DirectApplication::CreatePeerConnection() {
     webrtc::SpeechAudioDeviceFactory::SetYuvFilename(opts_.llama_llava_yuv, 
       opts_.llama_llava_yuv_width, opts_.llama_llava_yuv_height);
   }
+
+  if (!opts_.talking_face.empty()) {
+    webrtc::SpeechAudioDeviceFactory::SetTalkingFaceImage(opts_.talking_face);
+  }
 #endif // WEBRTC_SPEECH_DEVICES
 
   // Create the audio device module on the worker thread so its lifecycle runs there.

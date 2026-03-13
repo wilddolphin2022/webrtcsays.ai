@@ -31,6 +31,7 @@ std::unique_ptr<TaskQueueFactory> SpeechAudioDeviceFactory::_taskQueueFactory;
 std::unique_ptr<WhillatsTranscriber> SpeechAudioDeviceFactory::_whisperDevice;
 std::unique_ptr<WhillatsLlama> SpeechAudioDeviceFactory::_llamaDevice;
 std::unique_ptr<WhillatsTTS> SpeechAudioDeviceFactory::_ttsDevice;
+std::unique_ptr<TalkingFace> SpeechAudioDeviceFactory::_talkingFace;
 
 std::string SpeechAudioDeviceFactory::_whisperModelFilename;
 std::string SpeechAudioDeviceFactory::_llamaModelFilename;
@@ -115,6 +116,16 @@ void SpeechAudioDeviceFactory::SetLlavaMMProjFilename(absl::string_view llava_mm
 
 void SpeechAudioDeviceFactory::SetWavFilename(absl::string_view wav_filename) {
   _wavFilename = wav_filename;
+}
+
+void SpeechAudioDeviceFactory::SetTalkingFaceImage(const std::string& path) {
+  _talkingFace = std::make_unique<TalkingFace>();
+  if (!_talkingFace->loadImage(path.c_str())) {
+    RTC_LOG(LS_ERROR) << "Failed to load talking face image: " << path;
+    _talkingFace.reset();
+  } else {
+    RTC_LOG(LS_INFO) << "Talking face loaded: " << path;
+  }
 }
 
 void SpeechAudioDeviceFactory::SetYuvFilename(absl::string_view yuv_filename, int width, int height) {

@@ -51,12 +51,16 @@ const size_t kRecordingBufferSize =
 
 void ttsAudioCallback(bool success, const uint16_t* buffer, size_t buffer_size, void* user_data) {
   WhisperAudioDevice* audio_device = static_cast<WhisperAudioDevice*>(user_data);
-  if (!audio_device) return;  // Prevent crash if called after destruction
-  // Handle audio buffer here
+  if (!audio_device) return;
   if(success) {
     RTC_LOG(LS_VERBOSE) << "Generated " << buffer_size << " audio samples (" 
       << buffer_size / 16000 << " s)";
     audio_device->SetTTSBuffer(buffer, buffer_size);
+
+    auto* face = SpeechAudioDeviceFactory::talkingFace();
+    if (face) {
+      face->feedAudio(reinterpret_cast<const int16_t*>(buffer), buffer_size);
+    }
   }
 }
 
