@@ -57,10 +57,11 @@ if [ ! -f "testing/test.gni" ]; then
 fi
 
 if [ ! -f "buildtools/third_party/libc++/BUILD.gn" ]; then
-  echo "[build] buildtools libc++ missing; cloning chromium libc++ repo"
-  rm -rf buildtools/third_party/libc++
+  echo "[build] buildtools libc++ missing; syncing from gclient src/buildtools"
   mkdir -p buildtools/third_party
-  git clone --depth=1 https://chromium.googlesource.com/chromium/src/buildtools/third_party/libc++ buildtools/third_party/libc++
+  cp -a /root/src/buildtools/third_party/libc++ buildtools/third_party/libc++
+  cp -a /root/src/buildtools/third_party/libc++abi buildtools/third_party/libc++abi
+  cp -a /root/src/buildtools/third_party/libunwind buildtools/third_party/libunwind
 fi
 
 if [ ! -f "build/config/gclient_args.gni" ]; then
