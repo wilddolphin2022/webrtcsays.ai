@@ -39,6 +39,15 @@ if [ ! -f "build/config/BUILDCONFIG.gn" ]; then
   git clone --depth=1 https://chromium.googlesource.com/chromium/src/build.git build
 fi
 
+if [ ! -f "build/config/gclient_args.gni" ]; then
+  echo "[build] creating fallback build/config/gclient_args.gni"
+  mkdir -p build/config
+  cat > build/config/gclient_args.gni <<'EOF'
+# Generated for CI fallback
+generate_location_tags = true
+EOF
+fi
+
 if [ -x "build/install-build-deps.sh" ]; then
   ./build/install-build-deps.sh --no-chromeos-fonts || true
 fi
