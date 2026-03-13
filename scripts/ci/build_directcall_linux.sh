@@ -17,7 +17,6 @@ sudo apt-get install -y \
   clang \
   cmake \
   git \
-  gn \
   libasound2-dev \
   libgtk-3-dev \
   libxtst6 \
@@ -29,6 +28,13 @@ sudo apt-get install -y \
   unzip
 
 cd "${ROOT_DIR}"
+
+if [ ! -d "${HOME}/depot_tools" ]; then
+  git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git "${HOME}/depot_tools"
+fi
+"${HOME}/depot_tools/ensure_bootstrap" || true
+export PATH="${HOME}/depot_tools:${PATH}"
+
 if [ -f ".gitmodules" ]; then
   git submodule update --init --recursive modules/third_party/whillats
 fi
@@ -90,14 +96,17 @@ cmake -S "${WHILLATS_DIR}" -B "${WHILLATS_BUILD_DIR}" \
   -DLLAMA_CUDA=OFF
 cmake --build "${WHILLATS_BUILD_DIR}" --config Release --parallel 4
 
-GN_BIN="gn"
-if command -v "${GN_BIN}" >/dev/null 2>&1; then
-  echo "[build] using gn from PATH"
+GN_BIN="${HOME}/depot_tools/gn"
+if [ -x "${GN_BIN}" ]; then
+  echo "[build] using gn from depot_tools"
 elif [ -x "${ROOT_DIR}/buildtools/linux64/gn" ]; then
   GN_BIN="${ROOT_DIR}/buildtools/linux64/gn"
   echo "[build] using gn at ${GN_BIN}"
+elif command -v gn >/dev/null 2>&1; then
+  GN_BIN="gn"
+  echo "[build] using gn from PATH"
 else
-  echo "[build] gn not found in PATH or buildtools/linux64/gn"
+  echo "[build] gn not found in depot_tools, PATH, or buildtools/linux64/gn"
   exit 1
 fi
 
