@@ -81,6 +81,15 @@ if [ ! -f "build_overrides/protobuf.gni" ]; then
 EOF
 fi
 
+if [ ! -f "build_overrides/build.gni" ]; then
+  echo "[build] creating fallback build_overrides/build.gni"
+  mkdir -p build_overrides
+  cat > build_overrides/build.gni <<'EOF'
+# Chromium standalone fallback overrides.
+use_libcxx_modules = false
+EOF
+fi
+
 if [ ! -f "third_party/perfetto/include/perfetto/tracing/BUILD.gn" ]; then
   echo "[build] perfetto missing; cloning chromium perfetto repo"
   rm -rf third_party/perfetto
