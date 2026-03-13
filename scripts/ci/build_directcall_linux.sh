@@ -17,6 +17,7 @@ sudo apt-get install -y \
   clang \
   cmake \
   git \
+  gn \
   libasound2-dev \
   libgtk-3-dev \
   libxtst6 \
@@ -50,12 +51,15 @@ cmake -S "${WHILLATS_DIR}" -B "${WHILLATS_BUILD_DIR}" \
   -DLLAMA_CUDA=OFF
 cmake --build "${WHILLATS_BUILD_DIR}" --config Release --parallel 4
 
-GN_BIN="${ROOT_DIR}/buildtools/linux64/gn"
-if [ -x "${GN_BIN}" ]; then
+GN_BIN="gn"
+if command -v "${GN_BIN}" >/dev/null 2>&1; then
+  echo "[build] using gn from PATH"
+elif [ -x "${ROOT_DIR}/buildtools/linux64/gn" ]; then
+  GN_BIN="${ROOT_DIR}/buildtools/linux64/gn"
   echo "[build] using gn at ${GN_BIN}"
 else
-  GN_BIN="gn"
-  echo "[build] using gn from PATH"
+  echo "[build] gn not found in PATH or buildtools/linux64/gn"
+  exit 1
 fi
 
 "${GN_BIN}" gen "${OUT_DIR}" --args='target_os="linux" is_debug=false rtc_include_opus=true rtc_build_examples=true rtc_enable_symbol_export=true rtc_use_speech_audio_devices=true use_custom_libcxx=false'
