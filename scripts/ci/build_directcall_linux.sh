@@ -138,6 +138,8 @@ from pathlib import Path
 p = Path(".gn")
 lines = p.read_text().splitlines()
 lines = [ln for ln in lines if not ln.strip().startswith("export_compile_commands")]
+if not any("exec_script_allowlist" in ln for ln in lines):
+  lines.append("exec_script_allowlist = exec_script_whitelist")
 p.write_text("\n".join(lines) + "\n")
 PY
   echo "[build] patched .gn for CI gn compatibility"
