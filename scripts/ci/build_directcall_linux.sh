@@ -43,6 +43,16 @@ else
   echo "[build] skipping clang updater; tools/clang/scripts/update.py not present"
 fi
 
+if [ ! -f "build/dotfile_settings.gni" ]; then
+  echo "[build] creating fallback build/dotfile_settings.gni"
+  mkdir -p build
+  cat > build/dotfile_settings.gni <<'EOF'
+build_dotfile_settings = {
+  exec_script_whitelist = []
+}
+EOF
+fi
+
 cmake -S "${WHILLATS_DIR}" -B "${WHILLATS_BUILD_DIR}" \
   -DCMAKE_BUILD_TYPE=Release \
   -DGGML_CUDA=OFF \
