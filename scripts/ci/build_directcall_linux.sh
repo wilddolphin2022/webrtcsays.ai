@@ -100,6 +100,14 @@ done
 if ! rg "^not_fuzzed_add_configs\\s*=" "build_overrides/build.gni" >/dev/null 2>&1; then
   echo "not_fuzzed_add_configs = []" >> build_overrides/build.gni
 fi
+for v in \
+  not_fuzzed_needs_asan_add_configs \
+  not_fuzzed_needs_asan_remove_configs \
+  not_fuzzed_remove_nonasan_configs; do
+  if ! rg "^${v}\\s*=" "build_overrides/build.gni" >/dev/null 2>&1; then
+    echo "${v} = []" >> build_overrides/build.gni
+  fi
+done
 
 if [ ! -f "third_party/perfetto/include/perfetto/tracing/BUILD.gn" ]; then
   echo "[build] perfetto missing; cloning chromium perfetto repo"
