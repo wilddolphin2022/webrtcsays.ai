@@ -41,7 +41,11 @@ if [ -x "build/install-build-deps.sh" ]; then
   ./build/install-build-deps.sh --no-chromeos-fonts || true
 fi
 
-python3 tools/clang/scripts/update.py
+if [ -f "tools/clang/scripts/update.py" ]; then
+  python3 tools/clang/scripts/update.py
+else
+  echo "[build] skipping clang updater; tools/clang/scripts/update.py not present"
+fi
 
 cmake -S "${WHILLATS_DIR}" -B "${WHILLATS_BUILD_DIR}" \
   -DCMAKE_BUILD_TYPE=Release \
