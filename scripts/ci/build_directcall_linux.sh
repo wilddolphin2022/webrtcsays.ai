@@ -50,6 +50,12 @@ if [ ! -f "build/config/BUILDCONFIG.gn" ]; then
   git clone --depth=1 https://chromium.googlesource.com/chromium/src/build.git build
 fi
 
+if [ ! -f "testing/test.gni" ]; then
+  echo "[build] testing/test.gni missing; cloning chromium testing repo"
+  rm -rf testing
+  git clone --depth=1 https://chromium.googlesource.com/chromium/src/testing.git testing
+fi
+
 if [ ! -f "build/config/gclient_args.gni" ]; then
   echo "[build] creating fallback build/config/gclient_args.gni"
   mkdir -p build/config
