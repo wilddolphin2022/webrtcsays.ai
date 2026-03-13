@@ -81,6 +81,13 @@ if [ ! -f "build_overrides/protobuf.gni" ]; then
 EOF
 fi
 
+if [ ! -f "third_party/perfetto/include/perfetto/tracing/BUILD.gn" ]; then
+  echo "[build] perfetto missing; cloning chromium perfetto repo"
+  rm -rf third_party/perfetto
+  mkdir -p third_party
+  git clone --depth=1 https://chromium.googlesource.com/chromium/src/third_party/perfetto third_party/perfetto
+fi
+
 if [ -x "build/install-build-deps.sh" ]; then
   ./build/install-build-deps.sh --no-chromeos-fonts || true
 fi
