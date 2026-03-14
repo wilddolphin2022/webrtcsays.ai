@@ -1182,6 +1182,14 @@ if (!build_with_chromium) {
     include_dirs = []
     sources = [ "direct/main.cc" ]
 
+    # Keep preprocessor layout in sync with directlib. main.cc includes
+    # direct.h/client.h and instantiates classes implemented in libdirect.so.
+    # If WEBRTC_SPEECH_DEVICES differs between the executable and shared lib,
+    # class layouts diverge and trigger heap corruption at runtime.
+    if (rtc_use_speech_audio_devices) {
+      defines += [ "WEBRTC_SPEECH_DEVICES" ]
+    }
+
     # Only set the minimum macOS deployment version for macOS builds.
     cflags = []
     if (is_mac) {
