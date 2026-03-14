@@ -294,6 +294,10 @@ fi
 rm -rf "${DIST_DIR}"
 mkdir -p "${DIST_DIR}/lib"
 cp "${OUT_DIR}/directcall" "${DIST_DIR}/directcall"
+if [ -f "${OUT_DIR}/libdirect.so" ]; then
+  cp "${OUT_DIR}/libdirect.so" "${DIST_DIR}/libdirect.so"
+  cp "${OUT_DIR}/libdirect.so" "${DIST_DIR}/lib/" || true
+fi
 
 if [ -d "${WHILLATS_BUILD_DIR}/lib/Release" ]; then
   cp "${WHILLATS_BUILD_DIR}/lib/Release/"*.so* "${DIST_DIR}/lib/" 2>/dev/null || true
