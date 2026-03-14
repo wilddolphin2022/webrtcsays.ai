@@ -244,7 +244,17 @@ if ! "${GN_BIN}" --version >/dev/null 2>&1; then
 fi
 
 "${GN_BIN}" gen "${OUT_DIR}" --args='target_os="linux" is_debug=false is_clang=false rtc_include_opus=true rtc_include_tests=false rtc_build_examples=false rtc_build_sdk=false rtc_enable_symbol_export=true rtc_use_speech_audio_devices=true use_custom_libcxx=false enable_js_protobuf=false'
-ninja -C "${OUT_DIR}" directcall
+if [ -x "/usr/bin/ninja" ]; then
+  NINJA_BIN="/usr/bin/ninja"
+elif command -v ninja-build >/dev/null 2>&1; then
+  NINJA_BIN="$(command -v ninja-build)"
+elif command -v ninja >/dev/null 2>&1; then
+  NINJA_BIN="$(command -v ninja)"
+else
+  echo "[build] ninja binary not found"
+  exit 1
+fi
+"${NINJA_BIN}" -C "${OUT_DIR}" directcall
 
 rm -rf "${DIST_DIR}"
 mkdir -p "${DIST_DIR}/lib"
