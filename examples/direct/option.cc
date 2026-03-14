@@ -72,13 +72,6 @@ std::string expandHomePath(const std::string& path) {
 }
 } // namespace
 
-#if defined(WEBRTC_LINUX)
-extern "C" {
-void __libc_csu_init() {}
-void __libc_csu_fini() {}
-}
-#endif
-
 // Function to parse IP address and port from a string in the format "IP:PORT"
 bool DIRECT_API ParseIpAndPort(const std::string& ip_port, std::string& ip, int& port) {
   size_t colon_pos = ip_port.find(':');
