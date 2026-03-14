@@ -26,6 +26,10 @@
 rtc::scoped_refptr<webrtc::VideoTrackSourceInterface>
 CreateCameraVideoSource(class DirectPeer*, const Options&);
 
+extern "C" size_t direct_callee_client_size_from_impl() {
+    return sizeof(DirectCalleeClient);
+}
+
 // DirectCallerClient Implementation
 
 DirectCallerClient::DirectCallerClient(const Options& opts)
@@ -394,6 +398,8 @@ bool DirectCallerClient::RequestUserList() {
 DirectCalleeClient::DirectCalleeClient(const Options& opts)
     : DirectCallee(opts), initialized_(false), listening_(false) {
     fprintf(stderr, "ctor DirectCalleeClient begin\n");
+    fprintf(stderr, "ctor DirectCalleeClient sizeof=%zu this=%p init=%p listen=%p\n",
+            sizeof(DirectCalleeClient), this, &initialized_, &listening_);
     active_peer_id_ = "";
     // Parse the intended listening port from opts_.address instead of forcing 0
     std::string temp_ip;
