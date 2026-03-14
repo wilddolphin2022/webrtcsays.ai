@@ -93,10 +93,8 @@ DirectApplication::DirectApplication(Options opts)
     , llamaCallback_(llamaCallback, this)
 #endif //WEBRTC_SPEECH_DEVICES && LLAMA_NOTIFICATION_ENABLED
 {
-  fprintf(stderr, "ctor DirectApplication begin\n");
   // Threads will be created in Initialize() to support full teardown/re-init
   peer_connection_factory_ = nullptr;
-  fprintf(stderr, "ctor DirectApplication end\n");
 }
 
 void DirectApplication::Cleanup() {

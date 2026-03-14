@@ -40,11 +40,9 @@ using webrtc::PeerConnectionInterface;
 
 // DirectCallee Implementation
 DirectCallee::DirectCallee(Options opts) : DirectPeer(opts) {
-  fprintf(stderr, "ctor DirectCallee begin\n");
   std::string ip;
   local_port_ = 0;
   ParseIpAndPort(opts.address, ip, local_port_);
-  fprintf(stderr, "ctor DirectCallee end\n");
 }
 
 DirectCallee::~DirectCallee() {
