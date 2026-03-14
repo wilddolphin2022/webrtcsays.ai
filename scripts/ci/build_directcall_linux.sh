@@ -191,7 +191,7 @@ PY
   echo "[build] patched BUILD.gn to skip rtc_tools aggregate target"
 fi
 
-if [ -f "build/config/compiler/BUILD.gn" ] && ! rg 'config\\("no_exit_time_destructors"\\)' "build/config/compiler/BUILD.gn" >/dev/null 2>&1; then
+if [ -f "build/config/compiler/BUILD.gn" ] && ! rg 'config\("no_exit_time_destructors"\)' "build/config/compiler/BUILD.gn" >/dev/null 2>&1; then
   cat >> build/config/compiler/BUILD.gn <<'EOF'
 
 # Standalone CI compatibility aliases for newer WebRTC deps.
