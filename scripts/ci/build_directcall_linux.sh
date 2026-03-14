@@ -149,6 +149,9 @@ fi
 
 if [ -d ".git" ]; then
   git checkout -- .gn || true
+  git checkout -- BUILD.gn || true
+  git checkout -- build/config/compiler/BUILD.gn || true
+  git checkout -- build_overrides/build.gni || true
 fi
 
 if [ -f ".gn" ]; then
