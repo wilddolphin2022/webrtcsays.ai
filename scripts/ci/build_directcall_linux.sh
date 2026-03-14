@@ -191,25 +191,6 @@ PY
   echo "[build] patched BUILD.gn to skip rtc_tools aggregate target"
 fi
 
-if [ -f "build/config/compiler/BUILD.gn" ] && ! rg 'config\("no_exit_time_destructors"\)' "build/config/compiler/BUILD.gn" >/dev/null 2>&1; then
-  cat >> build/config/compiler/BUILD.gn <<'EOF'
-
-# Standalone CI compatibility aliases for newer WebRTC deps.
-config("no_exit_time_destructors") {
-  if (is_clang) {
-    cflags = [ "-Wno-exit-time-destructors" ]
-  }
-}
-
-config("no_global_constructors") {
-  if (is_clang) {
-    cflags = [ "-Wno-global-constructors" ]
-  }
-}
-EOF
-  echo "[build] added no_exit_time_destructors/no_global_constructors compatibility configs"
-fi
-
 cmake -S "${WHILLATS_DIR}" -B "${WHILLATS_BUILD_DIR}" \
   -DCMAKE_BUILD_TYPE=Release \
   -DGGML_CUDA=OFF \
