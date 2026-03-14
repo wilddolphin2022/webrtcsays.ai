@@ -26,10 +26,6 @@
 rtc::scoped_refptr<webrtc::VideoTrackSourceInterface>
 CreateCameraVideoSource(class DirectPeer*, const Options&);
 
-extern "C" size_t direct_callee_client_size_from_impl() {
-    return sizeof(DirectCalleeClient);
-}
-
 // DirectCallerClient Implementation
 
 DirectCallerClient::DirectCallerClient(const Options& opts)

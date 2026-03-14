@@ -206,7 +206,7 @@ private:
 };
 
 // DirectCalleeClient - Accepts incoming calls by name using signaling server  
-class EXPORT_API DirectCalleeClient : public DirectCallee, public std::enable_shared_from_this<DirectCalleeClient> {
+class EXPORT_API DirectCalleeClient : public DirectCallee {
 protected:
     std::unique_ptr<DirectClient> signaling_client_;  // For signaling server communication
     std::atomic<bool> shutting_down_{false};

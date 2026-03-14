@@ -28,8 +28,6 @@
 static volatile bool g_shutdown = false;
 static volatile int g_shutdown_count = 0;
 
-extern "C" size_t direct_callee_client_size_from_impl();
-
 // Signal handler for Ctrl+C
 void signalHandler(int signal) {
     if (signal == SIGINT) {
@@ -111,9 +109,6 @@ int main(int argc, char* argv[]) {
         fprintf(stderr, "Callee loop entered, g_shutdown=%d\n", g_shutdown);
         session_count++;
         fprintf(stderr, "Starting callee session #%d\n", session_count);
-        fprintf(stderr, "sizeof(DirectCalleeClient): main=%zu impl=%zu\n",
-                sizeof(DirectCalleeClient), direct_callee_client_size_from_impl());
-
         callee = std::make_shared<DirectCalleeClient>(opts);
 
         if (!callee->Initialize()) {
