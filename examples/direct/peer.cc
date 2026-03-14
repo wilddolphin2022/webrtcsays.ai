@@ -296,6 +296,7 @@ DirectPeer::DirectPeer(
     Options opts) 
   : DirectApplication(opts)
 {
+  fprintf(stderr, "ctor DirectPeer end\n");
 }
 
 DirectPeer::~DirectPeer() {

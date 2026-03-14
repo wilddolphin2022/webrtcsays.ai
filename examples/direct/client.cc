@@ -393,11 +393,14 @@ bool DirectCallerClient::RequestUserList() {
 
 DirectCalleeClient::DirectCalleeClient(const Options& opts)
     : DirectCallee(opts), initialized_(false), listening_(false) {
+    fprintf(stderr, "ctor DirectCalleeClient begin\n");
     active_peer_id_ = "";
     // Parse the intended listening port from opts_.address instead of forcing 0
     std::string temp_ip;
     ParseIpAndPort(opts_.address, temp_ip, local_port_);
+    fprintf(stderr, "ctor DirectCalleeClient before DirectClient\n");
     signaling_client_ = std::make_unique<DirectClient>(opts);
+    fprintf(stderr, "ctor DirectCalleeClient after DirectClient\n");
     // Provide busy predicate: callee is busy while a PeerConnection exists
     signaling_client_->setIsBusyCallback([this]() {
         // Only consider busy if there's an active call with remote description set
@@ -409,6 +412,7 @@ DirectCalleeClient::DirectCalleeClient(const Options& opts)
                         << ", returning=" << (active_call ? "BUSY" : "AVAILABLE");
         return active_call;        
     });
+    fprintf(stderr, "ctor DirectCalleeClient end\n");
 }
 
 DirectCalleeClient::~DirectCalleeClient() {
