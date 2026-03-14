@@ -25,6 +25,9 @@ Set these repository secrets:
    - `deploy_path`: default `/opt/directcall`
    - `service_name`: default `directcall`
    - `config_path`: fallback path in repo if `DIRECTCALL_CONFIG_JSON` is not set.
+   - `enable_signal_bridge`: install/start `directcall-bridge` service (default `true`)
+   - `bridge_room`: browser demo room routed to callee (default `testroom`)
+   - `signal_base_url`: public signal endpoint (default `https://www.wilddolphin.us/signal.php`)
 
 The workflow builds `dist/directcall-linux.tar.gz`, prepares `dist/directcall-config.json`, uploads both files, installs to the target path, writes a `systemd` service, and restarts it.
 
@@ -33,6 +36,13 @@ Service startup command is:
 `/opt/directcall/run-directcall.sh --config /opt/directcall/config.talking-face.json`
 
 If `/opt/directcall/cert.pem` or `/opt/directcall/key.pem` is missing, deploy script creates self-signed certs automatically.
+
+When `enable_signal_bridge=true`, deploy also installs:
+
+- `${deploy_path}/bridge_signal_tcp.py`
+- `systemd` unit `directcall-bridge` (or custom `BRIDGE_SERVICE_NAME`)
+
+This bridge forwards browser messages from `signal.php` room traffic to the native callee on `127.0.0.1:3456`.
 
 ## Run locally with your current SSH command
 

@@ -57,11 +57,21 @@ if [ ! -f "testing/test.gni" ]; then
 fi
 
 if [ ! -f "buildtools/third_party/libc++/BUILD.gn" ]; then
-  echo "[build] buildtools libc++ missing; syncing from gclient src/buildtools"
+  echo "[build] buildtools libc++ missing; preparing fallback buildtools third_party"
   mkdir -p buildtools/third_party
-  cp -a /root/src/buildtools/third_party/libc++ buildtools/third_party/libc++
-  cp -a /root/src/buildtools/third_party/libc++abi buildtools/third_party/libc++abi
-  cp -a /root/src/buildtools/third_party/libunwind buildtools/third_party/libunwind
+  if [ -d "/root/src/buildtools/third_party/libc++" ]; then
+    echo "[build] using buildtools snapshot from /root/src"
+    cp -a /root/src/buildtools/third_party/libc++ buildtools/third_party/libc++
+    cp -a /root/src/buildtools/third_party/libc++abi buildtools/third_party/libc++abi
+    cp -a /root/src/buildtools/third_party/libunwind buildtools/third_party/libunwind
+  else
+    echo "[build] /root/src snapshot not found; cloning chromium buildtools"
+    rm -rf /tmp/chromium-buildtools
+    git clone --depth=1 https://chromium.googlesource.com/chromium/src/buildtools /tmp/chromium-buildtools
+    cp -a /tmp/chromium-buildtools/third_party/libc++ buildtools/third_party/libc++
+    cp -a /tmp/chromium-buildtools/third_party/libc++abi buildtools/third_party/libc++abi
+    cp -a /tmp/chromium-buildtools/third_party/libunwind buildtools/third_party/libunwind
+  fi
 fi
 
 if [ ! -f "build/config/gclient_args.gni" ]; then

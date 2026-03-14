@@ -19,6 +19,18 @@ on:
         description: "Repo config JSON path (used if secret missing)"
         required: false
         default: "scripts/deploy/directcall.config.example.json"
+      enable_signal_bridge:
+        description: "Install and run signal.php -> directcall bridge"
+        required: false
+        default: "true"
+      bridge_room:
+        description: "Bridge room name used by HTTPS demo"
+        required: false
+        default: "testroom"
+      signal_base_url:
+        description: "Public signal.php URL used by browser demo"
+        required: false
+        default: "https://www.wilddolphin.us/signal.php"
 
 jobs:
   deploy:
@@ -62,6 +74,9 @@ jobs:
           DEPLOY_PATH: ${{ inputs.deploy_path }}
           SERVICE_NAME: ${{ inputs.service_name }}
           SSH_KEY_PATH: ~/.ssh/id_wd2025
+          ENABLE_SIGNAL_BRIDGE: ${{ inputs.enable_signal_bridge }}
+          BRIDGE_ROOM: ${{ inputs.bridge_room }}
+          SIGNAL_BASE_URL: ${{ inputs.signal_base_url }}
         run: |
           chmod +x scripts/deploy/deploy_directcall_remote.sh
           scripts/deploy/deploy_directcall_remote.sh dist/directcall-linux.tar.gz dist/directcall-config.json
