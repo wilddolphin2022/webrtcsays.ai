@@ -241,6 +241,15 @@ cmake -S "${WHILLATS_DIR}" -B "${WHILLATS_BUILD_DIR}" \
   -DLLAMA_CUDA=OFF
 cmake --build "${WHILLATS_BUILD_DIR}" --config Release --parallel 4
 
+# Normalize output paths expected by directcall GN files.
+if [ -d "${WHILLATS_BUILD_DIR}/lib/Release" ]; then
+  mkdir -p "${WHILLATS_BUILD_DIR}/lib/release"
+  cp -a "${WHILLATS_BUILD_DIR}/lib/Release/." "${WHILLATS_BUILD_DIR}/lib/release/" || true
+fi
+if [ -d "${WHILLATS_BUILD_DIR}/bin/Release" ]; then
+  cp -a "${WHILLATS_BUILD_DIR}/bin/Release/." "${WHILLATS_BUILD_DIR}/bin/" || true
+fi
+
 GN_BIN="${HOME}/depot_tools/gn"
 if [ -x "${GN_BIN}" ]; then
   echo "[build] using gn from depot_tools"
