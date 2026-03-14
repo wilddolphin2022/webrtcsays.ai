@@ -191,6 +191,48 @@ PY
   echo "[build] patched BUILD.gn to skip rtc_tools aggregate target"
 fi
 
+if [ -f "build/config/compiler/BUILD.gn" ]; then
+  python3 - <<'PY'
+from pathlib import Path
+import re
+
+p = Path("build/config/compiler/BUILD.gn")
+text = p.read_text()
+
+def normalize_config(name: str, body: str, text: str) -> str:
+  pat = re.compile(rf'\nconfig\("{re.escape(name)}"\)\s*\{{.*?\n\}}\n', re.S)
+  matches = pat.findall(text)
+  if len(matches) == 0:
+    text += "\n" + body + "\n"
+  elif len(matches) > 1:
+    text = pat.sub("\n", text)
+    text += "\n" + matches[0].strip() + "\n"
+  return text
+
+text = normalize_config(
+  "no_exit_time_destructors",
+  'config("no_exit_time_destructors") {\n'
+  '  if (is_clang) {\n'
+  '    cflags = [ "-Wno-exit-time-destructors" ]\n'
+  '  }\n'
+  '}',
+  text,
+)
+text = normalize_config(
+  "no_global_constructors",
+  'config("no_global_constructors") {\n'
+  '  if (is_clang) {\n'
+  '    cflags = [ "-Wno-global-constructors" ]\n'
+  '  }\n'
+  '}',
+  text,
+)
+
+p.write_text(text)
+PY
+  echo "[build] normalized compiler config aliases for standalone CI"
+fi
+
 cmake -S "${WHILLATS_DIR}" -B "${WHILLATS_BUILD_DIR}" \
   -DCMAKE_BUILD_TYPE=Release \
   -DGGML_CUDA=OFF \
