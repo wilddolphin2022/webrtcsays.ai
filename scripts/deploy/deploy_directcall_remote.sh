@@ -47,31 +47,37 @@ REMOTE="${DEPLOY_USER}@${DEPLOY_HOST}"
 TMP_TAR="/tmp/directcall-linux.tar.gz"
 TMP_CONFIG="/tmp/directcall-config.json"
 
+run_remote() {
+  if [ "${DEPLOY_USER}" = "root" ]; then
+    run_remote "$1"
+  else
+    run_remote "sudo bash -c '$1'"
+  fi
+}
+
 echo "[deploy] Uploading artifact to ${REMOTE}:${TMP_TAR}"
 scp "${SCP_OPTS[@]}" "${ARTIFACT_PATH}" "${REMOTE}:${TMP_TAR}"
 echo "[deploy] Uploading config to ${REMOTE}:${TMP_CONFIG}"
 scp "${SCP_OPTS[@]}" "${CONFIG_PATH}" "${REMOTE}:${TMP_CONFIG}"
 
 echo "[deploy] Installing on remote host"
-SUDO=""
-if [ "${DEPLOY_USER}" != "root" ]; then SUDO="sudo"; fi
-ssh "${SSH_OPTS[@]}" "${REMOTE}" "${SUDO} ${SUDO} mkdir -p '${DEPLOY_PATH}' && ${SUDO} tar -xzf '${TMP_TAR}' -C '${DEPLOY_PATH}' --strip-components=1 && ${SUDO} mv '${TMP_CONFIG}' '${DEPLOY_PATH}/config.talking-face.json' && ${SUDO} chmod +x '${DEPLOY_PATH}/directcall' '${DEPLOY_PATH}/run-directcall.sh' && rm -f '${TMP_TAR}'"
+run_remote "mkdir -p '${DEPLOY_PATH}' && tar -xzf '${TMP_TAR}' -C '${DEPLOY_PATH}' --strip-components=1 && mv '${TMP_CONFIG}' '${DEPLOY_PATH}/config.talking-face.json' && chmod +x '${DEPLOY_PATH}/directcall' '${DEPLOY_PATH}/run-directcall.sh' && rm -f '${TMP_TAR}'"
 
 echo "[deploy] Ensuring runtime certificate files exist"
-ssh "${SSH_OPTS[@]}" "${REMOTE}" "${SUDO} if [ ! -f '${DEPLOY_PATH}/cert.pem' ] || [ ! -f '${DEPLOY_PATH}/key.pem' ]; then openssl req -x509 -newkey rsa:4096 -keyout '${DEPLOY_PATH}/key.pem' -out '${DEPLOY_PATH}/cert.pem' -sha256 -days 3650 -nodes -subj '/C=US/ST=NA/L=NA/O=Wilddolphin/OU=DirectCall/CN=directcall'; fi"
+run_remote "if [ ! -f '${DEPLOY_PATH}/cert.pem' ] || [ ! -f '${DEPLOY_PATH}/key.pem' ]; then openssl req -x509 -newkey rsa:4096 -keyout '${DEPLOY_PATH}/key.pem' -out '${DEPLOY_PATH}/cert.pem' -sha256 -days 3650 -nodes -subj '/C=US/ST=NA/L=NA/O=Wilddolphin/OU=DirectCall/CN=directcall'; fi"
 
 echo "[deploy] Ensuring espeak-ng data is available"
-ssh "${SSH_OPTS[@]}" "${REMOTE}" "${SUDO} apt-get install -y -qq espeak-ng espeak-ng-data 2>/dev/null || true; if [ ! -e /usr/local/share/espeak-ng-data ]; then ESPEAK_SRC=\$(find /usr/lib -name espeak-ng-data -type d 2>/dev/null | head -1); if [ -n \"\${ESPEAK_SRC}\" ]; then mkdir -p /usr/local/share && ln -sf \"\${ESPEAK_SRC}\" /usr/local/share/espeak-ng-data && echo 'espeak-ng data linked'; fi; fi"
+run_remote "apt-get install -y -qq espeak-ng espeak-ng-data 2>/dev/null || true; if [ ! -e /usr/local/share/espeak-ng-data ]; then ESPEAK_SRC=\$(find /usr/lib -name espeak-ng-data -type d 2>/dev/null | head -1); if [ -n \"\${ESPEAK_SRC}\" ]; then mkdir -p /usr/local/share && ln -sf \"\${ESPEAK_SRC}\" /usr/local/share/espeak-ng-data && echo 'espeak-ng data linked'; fi; fi"
 
 echo "[deploy] Downloading AI models if not present"
 HF_AUTH=""
 if [ -n "${HF_TOKEN}" ]; then
   HF_AUTH="--header 'Authorization: Bearer ${HF_TOKEN}'"
 fi
-ssh "${SSH_OPTS[@]}" "${REMOTE}" "${SUDO} mkdir -p '${MODELS_PATH}'; if [ ! -f '${MODELS_PATH}/${WHISPER_MODEL_FILE}' ]; then echo 'Downloading Whisper model...'; curl -L ${HF_AUTH} -o '${MODELS_PATH}/${WHISPER_MODEL_FILE}' '${WHISPER_MODEL_URL}'; else echo 'Whisper model already present'; fi; if [ ! -f '${MODELS_PATH}/${LLAMA_MODEL_FILE}' ]; then echo 'Downloading LLM 1.5B model...'; curl -L ${HF_AUTH} -o '${MODELS_PATH}/${LLAMA_MODEL_FILE}' '${LLAMA_MODEL_URL}'; else echo 'LLM 1.5B model already present'; fi; if [ ! -f '${MODELS_PATH}/${LLAMA_9B_FILE}' ]; then echo 'Downloading LLM 9B model...'; curl -L ${HF_AUTH} -o '${MODELS_PATH}/${LLAMA_9B_FILE}' '${LLAMA_9B_URL}'; else echo 'LLM 9B model already present'; fi; ls -lh '${MODELS_PATH}/'"
+run_remote "mkdir -p '${MODELS_PATH}'; if [ ! -f '${MODELS_PATH}/${WHISPER_MODEL_FILE}' ]; then echo 'Downloading Whisper model...'; curl -L ${HF_AUTH} -o '${MODELS_PATH}/${WHISPER_MODEL_FILE}' '${WHISPER_MODEL_URL}'; else echo 'Whisper model already present'; fi; if [ ! -f '${MODELS_PATH}/${LLAMA_MODEL_FILE}' ]; then echo 'Downloading LLM 1.5B model...'; curl -L ${HF_AUTH} -o '${MODELS_PATH}/${LLAMA_MODEL_FILE}' '${LLAMA_MODEL_URL}'; else echo 'LLM 1.5B model already present'; fi; if [ ! -f '${MODELS_PATH}/${LLAMA_9B_FILE}' ]; then echo 'Downloading LLM 9B model...'; curl -L ${HF_AUTH} -o '${MODELS_PATH}/${LLAMA_9B_FILE}' '${LLAMA_9B_URL}'; else echo 'LLM 9B model already present'; fi; ls -lh '${MODELS_PATH}/'"
 
 echo "[deploy] Installing and configuring coturn TURN server"
-ssh "${SSH_OPTS[@]}" "${REMOTE}" "${SUDO} if ! command -v turnserver >/dev/null 2>&1; then apt-get install -y -qq coturn 2>/dev/null; fi; SERVER_IP=\$(ip -4 addr show eth0 | grep -oP '(?<=inet )[\d.]+' | head -1); if [ ! -f /etc/turnserver.conf ] || ! grep -q 'wilddolphin.us' /etc/turnserver.conf 2>/dev/null; then echo 'Configuring coturn...'; if [ -f '${DEPLOY_PATH}/cert.pem' ]; then cp '${DEPLOY_PATH}/cert.pem' /etc/turn_cert.pem; cp '${DEPLOY_PATH}/key.pem' /etc/turn_key.pem; chown turnserver:turnserver /etc/turn_cert.pem /etc/turn_key.pem 2>/dev/null || true; chmod 600 /etc/turn_key.pem; fi; cat > /etc/turnserver.conf <<TURNEOF
+run_remote "if ! command -v turnserver >/dev/null 2>&1; then apt-get install -y -qq coturn 2>/dev/null; fi; SERVER_IP=\$(ip -4 addr show eth0 | grep -oP '(?<=inet )[\d.]+' | head -1); if [ ! -f /etc/turnserver.conf ] || ! grep -q 'wilddolphin.us' /etc/turnserver.conf 2>/dev/null; then echo 'Configuring coturn...'; if [ -f '${DEPLOY_PATH}/cert.pem' ]; then cp '${DEPLOY_PATH}/cert.pem' /etc/turn_cert.pem; cp '${DEPLOY_PATH}/key.pem' /etc/turn_key.pem; chown turnserver:turnserver /etc/turn_cert.pem /etc/turn_key.pem 2>/dev/null || true; chmod 600 /etc/turn_key.pem; fi; cat > /etc/turnserver.conf <<TURNEOF
 listening-port=3478
 tls-listening-port=5349
 listening-ip=\${SERVER_IP}
@@ -98,15 +104,15 @@ systemctl enable coturn && systemctl restart coturn; echo 'coturn configured'; e
 WHILLATS_BRANCH="${WHILLATS_BRANCH:-talkingface}"
 WHILLATS_DIR="/opt/whillats"
 echo "[deploy] Building whillats on remote (branch: ${WHILLATS_BRANCH})"
-ssh "${SSH_OPTS[@]}" "${REMOTE}" "${SUDO} apt-get install -y -qq build-essential cmake git autoconf automake libtool pkg-config libasound2-dev libgomp1 espeak-ng espeak-ng-data 2>/dev/null; mkdir -p /usr/local/share && ESPEAK_SRC=\$(find /usr/lib -name espeak-ng-data -type d 2>/dev/null | head -1); [ -n \"\${ESPEAK_SRC}\" ] && ln -sf \"\${ESPEAK_SRC}\" /usr/local/share/espeak-ng-data 2>/dev/null || true; if [ ! -d '${WHILLATS_DIR}/.git' ]; then rm -rf '${WHILLATS_DIR}'; git clone --branch '${WHILLATS_BRANCH}' --recursive https://github.com/wilddolphin2025/whillats.git '${WHILLATS_DIR}'; else cd '${WHILLATS_DIR}' && git remote set-url origin https://github.com/wilddolphin2025/whillats.git && git fetch origin '${WHILLATS_BRANCH}' && git checkout -B '${WHILLATS_BRANCH}' 'origin/${WHILLATS_BRANCH}' && git submodule update --init --recursive; fi && cd '${WHILLATS_DIR}' && CUDA_FLAG='OFF'; if command -v nvcc >/dev/null 2>&1; then CUDA_FLAG='ON'; echo 'CUDA detected - enabling GPU acceleration'; fi && cmake -B build -DCMAKE_BUILD_TYPE=Release -DGGML_CUDA=\${CUDA_FLAG} -DWHISPER_CUDA=OFF -DGGML_CUBLAS=OFF -DLLAMA_CUDA=OFF 2>&1 | tail -3 && cmake --build build --config Release --parallel \$(nproc) --target whillats 2>&1 | tail -5 && cp build/lib/Release/libwhillats.so '${DEPLOY_PATH}/lib/libwhillats.so' && cp -n build/_deps/onnxruntime-src/lib/libonnxruntime.so* '${DEPLOY_PATH}/lib/' 2>/dev/null || true && find build -name 'libggml-cuda*.so*' -exec cp -av {} '${DEPLOY_PATH}/lib/' \; 2>/dev/null; mkdir -p build/bin/Release && if [ -d build/_deps/espeak-ng-proj-build/espeak-ng-data ] && [ ! -d build/bin/Release/espeak-ng-data ]; then cp -a build/_deps/espeak-ng-proj-build/espeak-ng-data build/bin/Release/espeak-ng-data; fi && echo 'whillats built and installed'"
+run_remote "apt-get install -y -qq build-essential cmake git autoconf automake libtool pkg-config libasound2-dev libgomp1 espeak-ng espeak-ng-data 2>/dev/null; mkdir -p /usr/local/share && ESPEAK_SRC=\$(find /usr/lib -name espeak-ng-data -type d 2>/dev/null | head -1); [ -n \"\${ESPEAK_SRC}\" ] && ln -sf \"\${ESPEAK_SRC}\" /usr/local/share/espeak-ng-data 2>/dev/null || true; if [ ! -d '${WHILLATS_DIR}/.git' ]; then rm -rf '${WHILLATS_DIR}'; git clone --branch '${WHILLATS_BRANCH}' --recursive https://github.com/wilddolphin2025/whillats.git '${WHILLATS_DIR}'; else cd '${WHILLATS_DIR}' && git remote set-url origin https://github.com/wilddolphin2025/whillats.git && git fetch origin '${WHILLATS_BRANCH}' && git checkout -B '${WHILLATS_BRANCH}' 'origin/${WHILLATS_BRANCH}' && git submodule update --init --recursive; fi && cd '${WHILLATS_DIR}' && CUDA_FLAG='OFF'; if command -v nvcc >/dev/null 2>&1; then CUDA_FLAG='ON'; echo 'CUDA detected - enabling GPU acceleration'; fi && cmake -B build -DCMAKE_BUILD_TYPE=Release -DGGML_CUDA=\${CUDA_FLAG} -DWHISPER_CUDA=OFF -DGGML_CUBLAS=OFF -DLLAMA_CUDA=OFF 2>&1 | tail -3 && cmake --build build --config Release --parallel \$(nproc) --target whillats 2>&1 | tail -5 && cp build/lib/Release/libwhillats.so '${DEPLOY_PATH}/lib/libwhillats.so' && cp -n build/_deps/onnxruntime-src/lib/libonnxruntime.so* '${DEPLOY_PATH}/lib/' 2>/dev/null || true && find build -name 'libggml-cuda*.so*' -exec cp -av {} '${DEPLOY_PATH}/lib/' \; 2>/dev/null; mkdir -p build/bin/Release && if [ -d build/_deps/espeak-ng-proj-build/espeak-ng-data ] && [ ! -d build/bin/Release/espeak-ng-data ]; then cp -a build/_deps/espeak-ng-proj-build/espeak-ng-data build/bin/Release/espeak-ng-data; fi && echo 'whillats built and installed'"
 
 STYLETTS2_HF_REPO="DDATT/StyleTTS2-ONNX-Cpp"
 STYLETTS2_MODEL_DIR="/opt/whillats/trained_models"
 echo "[deploy] Downloading StyleTTS2 ONNX models if not present"
-ssh "${SSH_OPTS[@]}" "${REMOTE}" "${SUDO} mkdir -p '${STYLETTS2_MODEL_DIR}'; if [ ! -f '${STYLETTS2_MODEL_DIR}/final_simp.onnx' ]; then echo 'Downloading StyleTTS2 models...'; HF_BASE='https://huggingface.co/${STYLETTS2_HF_REPO}/resolve/main'; for f in bert_encoder.onnx plbert_simp.onnx final_simp.onnx ref_s.bin ref_p.bin; do echo \"  \$f\"; curl -L -s ${HF_AUTH} -o '${STYLETTS2_MODEL_DIR}/'\$f \"\${HF_BASE}/\$f\"; done; else echo 'StyleTTS2 models already present'; fi; ls -lh '${STYLETTS2_MODEL_DIR}/'"
+run_remote "mkdir -p '${STYLETTS2_MODEL_DIR}'; if [ ! -f '${STYLETTS2_MODEL_DIR}/final_simp.onnx' ]; then echo 'Downloading StyleTTS2 models...'; HF_BASE='https://huggingface.co/${STYLETTS2_HF_REPO}/resolve/main'; for f in bert_encoder.onnx plbert_simp.onnx final_simp.onnx ref_s.bin ref_p.bin; do echo \"  \$f\"; curl -L -s ${HF_AUTH} -o '${STYLETTS2_MODEL_DIR}/'\$f \"\${HF_BASE}/\$f\"; done; else echo 'StyleTTS2 models already present'; fi; ls -lh '${STYLETTS2_MODEL_DIR}/'"
 
 echo "[deploy] Writing systemd unit"
-ssh "${SSH_OPTS[@]}" "${REMOTE}" "${SUDO} cat > /etc/systemd/system/${SERVICE_NAME}.service <<'EOF'
+run_remote "cat > /etc/systemd/system/${SERVICE_NAME}.service <<'EOF'
 [Unit]
 Description=DirectCall WebRTC callee
 After=network-online.target
@@ -127,7 +133,7 @@ WantedBy=multi-user.target
 EOF"
 
 echo "[deploy] Patching run-directcall.sh for unbuffered stdout"
-ssh "${SSH_OPTS[@]}" "${REMOTE}" "${SUDO} cat > '${DEPLOY_PATH}/run-directcall.sh' <<'RUNEOF'
+run_remote "cat > '${DEPLOY_PATH}/run-directcall.sh' <<'RUNEOF'
 #!/usr/bin/env bash
 set -euo pipefail
 SELF_DIR=\"\$(cd \"\$(dirname \"\${BASH_SOURCE[0]}\")\" && pwd)\"
@@ -137,11 +143,11 @@ RUNEOF
 chmod +x '${DEPLOY_PATH}/run-directcall.sh'"
 
 echo "[deploy] Reloading and restarting ${SERVICE_NAME}"
-ssh "${SSH_OPTS[@]}" "${REMOTE}" "${SUDO} systemctl daemon-reload && systemctl enable ${SERVICE_NAME} && systemctl restart ${SERVICE_NAME} && systemctl --no-pager --full status ${SERVICE_NAME} | sed -n '1,30p'"
+run_remote "systemctl daemon-reload && systemctl enable ${SERVICE_NAME} && systemctl restart ${SERVICE_NAME} && systemctl --no-pager --full status ${SERVICE_NAME} | sed -n '1,30p'"
 
 if [ "${ENABLE_SIGNAL_BRIDGE}" = "true" ]; then
   echo "[deploy] Installing signal bridge script (v2 with framing, reordering, session management)"
-  ssh "${SSH_OPTS[@]}" "${REMOTE}" "${SUDO} cat > '${DEPLOY_PATH}/bridge_signal_tcp.py' <<'PY'
+  run_remote "cat > '${DEPLOY_PATH}/bridge_signal_tcp.py' <<'PY'
 #!/usr/bin/env python3
 \"\"\"Bridge between signal.php (HTTPS polling) and directcall TCP callee.
 
@@ -374,7 +380,7 @@ PY
 chmod +x '${DEPLOY_PATH}/bridge_signal_tcp.py'"
 
   echo "[deploy] Writing bridge systemd unit"
-  ssh "${SSH_OPTS[@]}" "${REMOTE}" "${SUDO} cat > /etc/systemd/system/${BRIDGE_SERVICE_NAME}.service <<'EOF'
+  run_remote "cat > /etc/systemd/system/${BRIDGE_SERVICE_NAME}.service <<'EOF'
 [Unit]
 Description=Bridge signal.php room traffic to directcall TCP callee
 After=network-online.target ${SERVICE_NAME}.service
@@ -392,7 +398,7 @@ WantedBy=multi-user.target
 EOF"
 
   echo "[deploy] Reloading and restarting ${BRIDGE_SERVICE_NAME}"
-  ssh "${SSH_OPTS[@]}" "${REMOTE}" "${SUDO} systemctl daemon-reload && systemctl enable ${BRIDGE_SERVICE_NAME} && systemctl restart ${BRIDGE_SERVICE_NAME} && systemctl --no-pager --full status ${BRIDGE_SERVICE_NAME} | sed -n '1,30p'"
+  run_remote "systemctl daemon-reload && systemctl enable ${BRIDGE_SERVICE_NAME} && systemctl restart ${BRIDGE_SERVICE_NAME} && systemctl --no-pager --full status ${BRIDGE_SERVICE_NAME} | sed -n '1,30p'"
 fi
 
 echo "[deploy] Done"
