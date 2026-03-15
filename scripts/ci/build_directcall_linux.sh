@@ -133,6 +133,49 @@ if [ ! -f "third_party/abseil-cpp/BUILD.gn" ]; then
   git clone --depth=1 https://chromium.googlesource.com/chromium/src/third_party/abseil-cpp third_party/abseil-cpp
 fi
 
+echo "[build] creating stub .gni files for third_party deps not cloned via gclient"
+mkdir -p third_party/libsrtp third_party/libaom third_party/protobuf third_party/grpc third_party/jni_zero
+
+if [ ! -f "third_party/libsrtp/options.gni" ]; then
+  cat > third_party/libsrtp/options.gni <<'GNI'
+declare_args() {
+  rtc_builtin_ssl_root_certificates = true
+}
+GNI
+fi
+
+if [ ! -f "third_party/libaom/options.gni" ]; then
+  cat > third_party/libaom/options.gni <<'GNI'
+declare_args() {
+  enable_libaom = false
+}
+GNI
+fi
+
+if [ ! -f "third_party/protobuf/proto_library.gni" ]; then
+  cat > third_party/protobuf/proto_library.gni <<'GNI'
+template("proto_library") {
+  group(target_name) { forward_variables_from(invoker, "*") }
+}
+GNI
+fi
+
+if [ ! -f "third_party/grpc/grpc_library.gni" ]; then
+  cat > third_party/grpc/grpc_library.gni <<'GNI'
+template("grpc_library") {
+  group(target_name) { forward_variables_from(invoker, "*") }
+}
+GNI
+fi
+
+if [ ! -f "third_party/jni_zero/jni_zero.gni" ]; then
+  cat > third_party/jni_zero/jni_zero.gni <<'GNI'
+declare_args() { jni_zero_enable = false }
+template("generate_jni") { group(target_name) { forward_variables_from(invoker, "*") } }
+template("jni_zero_generate") { group(target_name) { forward_variables_from(invoker, "*") } }
+GNI
+fi
+
 if [ -x "build/install-build-deps.sh" ]; then
   ./build/install-build-deps.sh --no-chromeos-fonts || true
 fi
