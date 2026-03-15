@@ -60,11 +60,52 @@ echo "[deploy] Ensuring espeak-ng data is available"
 ssh "${SSH_OPTS[@]}" "${REMOTE}" "apt-get install -y -qq espeak-ng espeak-ng-data 2>/dev/null || true; if [ ! -e /usr/local/share/espeak-ng-data ]; then ESPEAK_SRC=\$(find /usr/lib -name espeak-ng-data -type d 2>/dev/null | head -1); if [ -n \"\${ESPEAK_SRC}\" ]; then mkdir -p /usr/local/share && ln -sf \"\${ESPEAK_SRC}\" /usr/local/share/espeak-ng-data && echo 'espeak-ng data linked'; fi; fi"
 
 echo "[deploy] Downloading AI models if not present"
-HF_AUTH_HEADER=""
+HF_AUTH=""
 if [ -n "${HF_TOKEN}" ]; then
-  HF_AUTH_HEADER="-H 'Authorization: Bearer ${HF_TOKEN}'"
+  HF_AUTH="--header 'Authorization: Bearer ${HF_TOKEN}'"
 fi
-ssh "${SSH_OPTS[@]}" "${REMOTE}" "mkdir -p '${MODELS_PATH}'; if [ ! -f '${MODELS_PATH}/${WHISPER_MODEL_FILE}' ]; then echo 'Downloading Whisper model...'; curl -L ${HF_AUTH_HEADER} -o '${MODELS_PATH}/${WHISPER_MODEL_FILE}' '${WHISPER_MODEL_URL}'; else echo 'Whisper model already present'; fi; if [ ! -f '${MODELS_PATH}/${LLAMA_MODEL_FILE}' ]; then echo 'Downloading LLM model...'; curl -L ${HF_AUTH_HEADER} -o '${MODELS_PATH}/${LLAMA_MODEL_FILE}' '${LLAMA_MODEL_URL}'; else echo 'LLM model already present'; fi; ls -lh '${MODELS_PATH}/'"
+ssh "${SSH_OPTS[@]}" "${REMOTE}" "mkdir -p '${MODELS_PATH}'; if [ ! -f '${MODELS_PATH}/${WHISPER_MODEL_FILE}' ]; then echo 'Downloading Whisper model...'; curl -L ${HF_AUTH} -o '${MODELS_PATH}/${WHISPER_MODEL_FILE}' '${WHISPER_MODEL_URL}'; else echo 'Whisper model already present'; fi; if [ ! -f '${MODELS_PATH}/${LLAMA_MODEL_FILE}' ]; then echo 'Downloading LLM model...'; curl -L ${HF_AUTH} -o '${MODELS_PATH}/${LLAMA_MODEL_FILE}' '${LLAMA_MODEL_URL}'; else echo 'LLM model already present'; fi; ls -lh '${MODELS_PATH}/'"
+
+STYLETTS2_HF_REPO="DDATT/StyleTTS2-ONNX-Cpp"
+STYLETTS2_MODEL_DIR="/opt/whillats/trained_models"
+ONNXRUNTIME_VERSION="1.17.3"
+echo "[deploy] Downloading StyleTTS2 ONNX models if not present"
+ssh "${SSH_OPTS[@]}" "${REMOTE}" "mkdir -p '${STYLETTS2_MODEL_DIR}'; if [ ! -f '${STYLETTS2_MODEL_DIR}/final_simp.onnx' ]; then echo 'Downloading StyleTTS2 models...'; HF_BASE='https://huggingface.co/${STYLETTS2_HF_REPO}/resolve/main'; for f in bert_encoder.onnx plbert_simp.onnx final_simp.onnx ref_s.bin ref_p.bin; do echo \"  \$f\"; curl -L -s ${HF_AUTH} -o '${STYLETTS2_MODEL_DIR}/'\$f \"\${HF_BASE}/\$f\"; done; else echo 'StyleTTS2 models already present'; fi; ls -lh '${STYLETTS2_MODEL_DIR}/'"
+
+ONNXRUNTIME_LIB_DIR="/opt/whillats/build/_deps/onnxruntime-src/lib"
+echo "[deploy] Downloading ONNX Runtime if not present"
+ssh "${SSH_OPTS[@]}" "${REMOTE}" "mkdir -p '${ONNXRUNTIME_LIB_DIR}'; if [ ! -f '${ONNXRUNTIME_LIB_DIR}/libonnxruntime.so' ]; then echo 'Downloading ONNX Runtime ${ONNXRUNTIME_VERSION}...'; curl -L -s -o /tmp/onnxruntime.tgz 'https://github.com/microsoft/onnxruntime/releases/download/v${ONNXRUNTIME_VERSION}/onnxruntime-linux-x64-${ONNXRUNTIME_VERSION}.tgz' && tar -xzf /tmp/onnxruntime.tgz -C /tmp && cp /tmp/onnxruntime-linux-x64-${ONNXRUNTIME_VERSION}/lib/libonnxruntime.so* '${ONNXRUNTIME_LIB_DIR}/' && rm -rf /tmp/onnxruntime* && echo 'ONNX Runtime installed'; else echo 'ONNX Runtime already present'; fi"
+
+echo "[deploy] Copying ONNX Runtime and whillats libs to deploy path"
+ssh "${SSH_OPTS[@]}" "${REMOTE}" "cp -n '${ONNXRUNTIME_LIB_DIR}'/libonnxruntime.so* '${DEPLOY_PATH}/lib/' 2>/dev/null || true; if [ -f /opt/whillats/build/lib/Release/libwhillats.so ]; then cp /opt/whillats/build/lib/Release/libwhillats.so '${DEPLOY_PATH}/lib/libwhillats.so'; echo 'Copied server-built libwhillats.so'; fi"
+
+echo "[deploy] Copying talking face image"
+ssh "${SSH_OPTS[@]}" "${REMOTE}" "if [ ! -f '${DEPLOY_PATH}/RobotPhoneLogo.jpeg' ]; then if [ -f /opt/directcall/RobotPhoneLogo.jpeg ]; then echo 'Face image already present'; else echo 'Face image missing - will use placeholder'; fi; fi"
+
+echo "[deploy] Installing and configuring coturn TURN server"
+ssh "${SSH_OPTS[@]}" "${REMOTE}" "if ! command -v turnserver >/dev/null 2>&1; then apt-get install -y -qq coturn 2>/dev/null; fi; SERVER_IP=\$(ip -4 addr show eth0 | grep -oP '(?<=inet )[\d.]+' | head -1); if [ ! -f /etc/turnserver.conf ] || ! grep -q 'wilddolphin.us' /etc/turnserver.conf 2>/dev/null; then echo 'Configuring coturn...'; if [ -f '${DEPLOY_PATH}/cert.pem' ]; then cp '${DEPLOY_PATH}/cert.pem' /etc/turn_cert.pem; cp '${DEPLOY_PATH}/key.pem' /etc/turn_key.pem; chown turnserver:turnserver /etc/turn_cert.pem /etc/turn_key.pem 2>/dev/null || true; chmod 600 /etc/turn_key.pem; fi; cat > /etc/turnserver.conf <<TURNEOF
+listening-port=3478
+tls-listening-port=5349
+listening-ip=\${SERVER_IP}
+relay-ip=\${SERVER_IP}
+min-port=49152
+max-port=65535
+verbose
+fingerprint
+lt-cred-mech
+user=webrtcsays.ai:wilddolphin
+realm=wilddolphin.us
+server-name=wilddolphin.us
+cert=/etc/turn_cert.pem
+pkey=/etc/turn_key.pem
+no-multicast-peers
+no-rfc5780
+no-stun-backward-compatibility
+response-origin-only-with-rfc5780
+syslog
+no-cli
+TURNEOF
+systemctl enable coturn && systemctl restart coturn; echo 'coturn configured'; else echo 'coturn already configured'; systemctl is-active coturn || systemctl restart coturn; fi"
 
 echo "[deploy] Writing systemd unit"
 ssh "${SSH_OPTS[@]}" "${REMOTE}" "cat > /etc/systemd/system/${SERVICE_NAME}.service <<'EOF'
@@ -80,6 +121,8 @@ ExecStart=${DEPLOY_PATH}/run-directcall.sh --config ${DEPLOY_PATH}/config.talkin
 Restart=always
 RestartSec=2
 Environment=LD_LIBRARY_PATH=${DEPLOY_PATH}/lib
+Environment=STYLETTS2_MODEL_DIR=/opt/whillats/trained_models
+Environment=ESPEAK_DATA_PATH=/opt/whillats/build/bin/Release/espeak-ng-data
 
 [Install]
 WantedBy=multi-user.target

@@ -402,5 +402,18 @@ exec "${SELF_DIR}/directcall" "$@"
 EOF
 chmod +x "${DIST_DIR}/run-directcall.sh"
 
+if [ -f "${ROOT_DIR}/RobotPhoneLogo.jpeg" ]; then
+  cp "${ROOT_DIR}/RobotPhoneLogo.jpeg" "${DIST_DIR}/"
+  echo "[build] included RobotPhoneLogo.jpeg"
+elif [ -f "${ROOT_DIR}/examples/direct/RobotPhoneLogo.jpeg" ]; then
+  cp "${ROOT_DIR}/examples/direct/RobotPhoneLogo.jpeg" "${DIST_DIR}/"
+fi
+
 tar -C "${ROOT_DIR}/dist" -czf "${ROOT_DIR}/dist/directcall-linux.tar.gz" directcall-linux
 echo "[build] packaged artifact: ${ROOT_DIR}/dist/directcall-linux.tar.gz"
+
+echo "[build] cleaning up build artifacts to free disk space"
+rm -rf "${DIST_DIR}"
+rm -rf "${OUT_DIR}"
+rm -rf "${WHILLATS_BUILD_DIR}"
+echo "[build] cleanup done"
