@@ -1,0 +1,61 @@
+import("../../../../webrtc.gni")
+
+# Target for the missing ObjCVideoTrackSource implementation
+if (is_ios || is_mac) {
+  rtc_library("native_src_objc") {
+  visibility = [ "*" ]
+  sources = [
+    # Only include the sources that were causing linker errors
+    "objc_video_track_source.h",
+    "objc_video_track_source.mm",
+
+    # Keep renderer? Let's remove for now, native_video might cover it.
+    # "objc_video_renderer.h",
+    # "objc_video_renderer.mm",
+    
+    # Removed sources compiled by other targets (audio_device_objc, native_video, network_monitor_objc):
+    # "objc_frame_buffer.h",
+    # "objc_frame_buffer.mm",
+    # "objc_video_decoder_factory.h",
+    # "objc_video_decoder_factory.mm",
+    # "objc_video_encoder_factory.h",
+    # "objc_video_encoder_factory.mm",
+    # "objc_video_frame.h",
+    # "objc_video_frame.mm",
+    # "network_monitor_observer.h",
+    # "objc_audio_device.h",
+    # "objc_audio_device.mm",
+    # "objc_audio_device_delegate.h",
+    # "objc_audio_device_delegate.mm",
+    # "objc_network_monitor.h",
+    # "objc_network_monitor.mm",
+  ]
+
+  configs += [ "//sdk:common_config_objc" ]
+
+  # Reduced dependencies - rely on transitive dependencies from dylib target
+  deps = [
+    "//api:libjingle_peerconnection_api", # For AdaptedVideoTrackSource base class
+    "//api:make_ref_counted",
+    "//api:scoped_refptr",
+    "//api/video:video_frame",
+    "//rtc_base:checks",
+    "//rtc_base:refcount",
+    "//sdk:base_objc", # For RTC_OBJC_TYPE
+    "//sdk:helpers_objc", # For RTCObjCVideoSourceAdapter
+    "//sdk:videoframebuffer_objc", # Added for ObjCFrameBuffer / RTCCVPixelBuffer
+  ]
+
+  frameworks = [
+    "Foundation.framework",
+    # Removed potentially unnecessary frameworks, rely on main target
+    # "AVFoundation.framework", 
+    # "AudioToolbox.framework",
+    # "CoreMedia.framework",
+    # "Network.framework",
+  ]
+  # if (is_mac) {
+  #   frameworks += [ "AudioUnit.framework" ]
+  # }
+  } 
+}

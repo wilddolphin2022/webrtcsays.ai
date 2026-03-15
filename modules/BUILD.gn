@@ -70,6 +70,12 @@ if (rtc_include_tests && !build_with_chromium) {
       "//testing/gtest",
     ]
 
+    if (is_ios || is_mac) {
+      deps += [
+        "//sdk/objc/native/src:native_src_objc",
+      ]
+    }
+
     if (rtc_desktop_capture_supported) {
       deps += [ "desktop_capture:desktop_capture_modules_tests" ]
     }
@@ -227,6 +233,12 @@ if (rtc_include_tests && !build_with_chromium) {
       "video_coding/deprecated:deprecated_unittests",
       "video_coding/timing:timing_unittests",
     ]
+
+    if (is_ios || is_mac) {
+      deps += [
+        "//sdk/objc/native/src:native_src_objc",
+      ]
+    }
 
     if (rtc_desktop_capture_supported) {
       deps += [ "desktop_capture:desktop_capture_unittests" ]

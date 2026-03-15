@@ -1,0 +1,62 @@
+name: Build WebRTC
+
+on:
+  push:
+    branches: [ develop ]
+  pull_request:
+    branches: [ develop ]
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        build_type: [debug, release]
+        
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        submodules: recursive
+        
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential cmake git clang lld autoconf automake libtool pkg-config libasound2-dev libgtk-3-dev libxtst6 ninja-build bc
+        # Note: Swap creation not possible in Docker containers without privileged mode
+        echo "Installed system dependencies for memory-conscious build"
+        
+    - name: Install depot_tools
+      run: |
+        git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git $HOME/depot_tools
+        echo "$HOME/depot_tools" >> $GITHUB_PATH
+
+    - name: Build WebRTC
+      timeout-minutes: 180
+      run: |
+        # Monitor memory usage during build
+        echo "=== System Resources Before Build ==="
+        free -h
+        df -h
+        echo "======================================="
+        
+        chmod +x build.sh
+        # Skip whillats build in memory-constrained CI environment to avoid OOM
+        ./build.sh ${{ matrix.build_type }}
+        
+        echo "=== System Resources After Build ==="
+        free -h
+        df -h
+        echo "====================================="
+        
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: webrtc-linux-${{ matrix.build_type }}
+        path: src/out/${{ matrix.build_type }}/directcall
+        retention-days: 7
+
+# Windows build disabled - complex setup, consider re-enabling if needed
+  # build-windows:
+  #   runs-on: windows-latest

@@ -687,6 +687,7 @@ if (rtc_include_tests) {
     }
 
     rtc_test("test_support_unittests") {
+      testonly = true
       deps = [
         ":call_config_utils",
         ":copy_to_file_audio_capturer_unittest",
@@ -773,6 +774,13 @@ if (rtc_include_tests) {
         "//third_party/abseil-cpp/absl/strings:string_view",
         "//third_party/libyuv",
       ]
+
+      if (is_ios || is_mac) {
+        deps += [
+          "//sdk/objc/native/src:native_src_objc",
+          "//sdk:native_video",
+        ]
+      }
       sources = [
         "call_config_utils_unittest.cc",
         "direct_transport_unittest.cc",

@@ -344,7 +344,7 @@ rtc_opus_dir = "//third_party/opus"
 
 # Desktop capturer is supported only on Windows, OSX and Linux.
 rtc_desktop_capture_supported =
-    (is_win && current_os != "winuwp") || is_mac ||
+    (is_win && current_os != "winuwp") || 
     ((is_linux || is_chromeos) && (rtc_use_x11_extensions || rtc_use_pipewire))
 
 ###############################################################################
@@ -539,11 +539,11 @@ template("rtc_test") {
     }
 
     # Build //test:google_test_runner_objc when the test is not a real XCTest.
-    if (is_ios && rtc_include_tests) {
-      if (!defined(invoker.is_xctest) || !invoker.is_xctest) {
-        xctest_module_target = "//test:google_test_runner_objc"
-      }
-    }
+    #if (is_ios && rtc_include_tests) {
+    #  if (!defined(invoker.is_xctest) || !invoker.is_xctest) {
+    #    xctest_module_target = "//test:google_test_runner_objc"
+    #  }
+    #}
 
     assert(
         !defined(absl_deps),

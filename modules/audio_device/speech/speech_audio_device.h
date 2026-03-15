@@ -20,9 +20,9 @@ class SpeechAudioDevice : public webrtc::AudioDeviceGeneric {
   virtual void speakText(const std::string& text) = 0;
   virtual void askLlama(const std::string& text) = 0;
 
-  bool _whispering = false;
-  bool _llaming = false;
-  bool _ttsing = false;
+  bool _whisper_enabled = false;
+  bool _llama_enabled = false;
+  bool _tts_enabled = false;
 
   virtual ~SpeechAudioDevice() {}
 };

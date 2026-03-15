@@ -1,0 +1,75 @@
+name: Release Build
+
+on:
+  release:
+    types: [published]
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-release:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            artifact_ext: ""
+            lib_ext: "so"
+          - os: macos-latest
+            platform: macos
+            artifact_ext: ""
+            lib_ext: "dylib"
+            
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        submodules: recursive
+        
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+        
+    - name: Install depot_tools
+      run: |
+        git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git $HOME/depot_tools
+        echo "$HOME/depot_tools" >> $GITHUB_PATH
+        
+    - name: Install dependencies (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential pkg-config libasound2-dev libgtk-3-dev libxtst6 ninja-build
+        
+    - name: Install dependencies (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        brew install ninja pkg-config
+        
+    - name: Build WebRTC Release
+      run: |
+        chmod +x build.sh
+        ./build.sh release whillats
+        
+    - name: Package artifacts
+      run: |
+        mkdir -p release-package
+        cp src/out/release/directcall${{ matrix.artifact_ext }} release-package/
+        cp src/out/release/*.${{ matrix.lib_ext }} release-package/ 2>/dev/null || true
+        tar -czf webrtc-${{ matrix.platform }}-release.tar.gz -C release-package .
+        
+    - name: Upload to Release
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ./webrtc-${{ matrix.platform }}-release.tar.gz
+        asset_name: webrtc-${{ matrix.platform }}-release.tar.gz
+        asset_content_type: application/gzip
+      if: github.event_name == 'release'

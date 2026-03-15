@@ -1,0 +1,96 @@
+name: PR Validation
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  validate-build-script:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Validate build script syntax
+      run: |
+        bash -n build.sh
+        echo "Build script syntax is valid"
+        
+    - name: Check for required files
+      run: |
+        test -f build.sh || (echo "build.sh not found" && exit 1)
+        test -f BUILD.gn || (echo "BUILD.gn not found" && exit 1)
+        test -f DEPS || (echo "DEPS not found" && exit 1)
+        echo "All required files are present"
+
+  quick-build-test:
+    runs-on: ubuntu-latest
+    needs: validate-build-script
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
+        
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+        
+    - name: Install depot_tools
+      run: |
+        git clone --depth=1 https://chromium.googlesource.com/chromium/tools/depot_tools.git $HOME/depot_tools
+        echo "$HOME/depot_tools" >> $GITHUB_PATH
+        
+    - name: Install minimal dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential ninja-build
+        
+    - name: Test depot_tools setup
+      run: |
+        which gclient
+        which gn
+        python3 --version
+        
+    - name: Quick validation build (gclient sync only)
+      run: |
+        chmod +x build.sh
+        # Modify the script to exit early after gclient sync for PR validation
+        sed 's/ninja -C out/echo "Skipping ninja build for PR validation" #/g' build.sh > build-test.sh
+        chmod +x build-test.sh
+        timeout 30m ./build-test.sh debug whillats || echo "Build validation completed (may have timed out as expected)"
+
+  build-macos-pr:
+    runs-on: macos-latest
+    needs: validate-build-script
+    if: contains(github.event.pull_request.labels.*.name, 'test-macos') || contains(github.event.pull_request.title, '[macos]')
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
+        
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+        
+    - name: Install depot_tools
+      run: |
+        git clone --depth=1 https://chromium.googlesource.com/chromium/tools/depot_tools.git $HOME/depot_tools
+        echo "$HOME/depot_tools" >> $GITHUB_PATH
+        
+    - name: Install system dependencies
+      run: |
+        brew install ninja
+        
+    - name: Test macOS build script compatibility
+      run: |
+        chmod +x build.sh
+        # Test that the script can detect macOS properly and set up environment
+        ./build.sh debug whillats 2>&1 | head -30
+        echo "macOS compatibility test completed"

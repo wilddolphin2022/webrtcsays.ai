@@ -50,6 +50,7 @@ rtc_library("sdk_tests") {
 
 if (is_ios || is_mac) {
   config("common_config_objc") {
+    visibility = [ "*" ]
     include_dirs = [
       "objc",
 
@@ -333,6 +334,7 @@ if (is_ios || is_mac) {
       }
 
       rtc_library("audio_session_delegate_adapter_objc") {
+        visibility = [ "*" ]
         sources = [
           "objc/components/audio/RTCNativeAudioSessionDelegateAdapter.h",
           "objc/components/audio/RTCNativeAudioSessionDelegateAdapter.mm",
@@ -500,9 +502,6 @@ if (is_ios || is_mac) {
         "../rtc_base:buffer",
         "../rtc_base:checks",
         "../rtc_base:logging",
-        "../rtc_base:safe_minmax",
-        "../rtc_base:threading",
-        "../rtc_base:timeutils",
       ]
       if (is_mac) {
         frameworks = [ "AudioUnit.framework" ]
@@ -550,6 +549,7 @@ if (is_ios || is_mac) {
         ":base_objc",
         ":mediasource_objc",
         ":native_video",
+        "//sdk/objc/native/src:native_src_objc",
         ":videoframebuffer_objc",
         "../api:libjingle_peerconnection_api",
         "../api:media_stream_interface",
@@ -1405,6 +1405,7 @@ if (is_ios || is_mac) {
           ":videocapture_objc",
           ":videocodec_objc",
           ":videotoolbox_objc",
+          "objc/native/src:native_src_objc",
         ]
         if (!build_with_chromium) {
           deps += [
@@ -1417,7 +1418,6 @@ if (is_ios || is_mac) {
           "AVFoundation.framework",
           "CoreGraphics.framework",
           "CoreMedia.framework",
-          "Foundation.framework",
           "UIKit.framework",
         ]
 
@@ -1425,6 +1425,11 @@ if (is_ios || is_mac) {
           "..:common_objc",
           ":used_from_extension",
         ]
+
+        # Conditionally add Whillats config to the CORE framework
+        if (rtc_use_speech_audio_devices) {
+          configs += [ ":whillats_framework_config" ]
+        }
 
         public_configs = [ ":common_config_objc" ]
       }
@@ -1542,6 +1547,7 @@ if (is_ios || is_mac) {
           ":videocapture_objc",
           ":videocodec_objc",
           ":videotoolbox_objc",
+          "objc/native/src:native_src_objc",
         ]
         if (!build_with_chromium) {
           deps += [
@@ -1631,13 +1637,15 @@ if (is_ios || is_mac) {
         "../api/video:video_rtp_headers",
         "../api/video_codecs:video_codecs_api",
         "../common_video",
-        "../pc:video_track_source_proxy",
-        "../rtc_base:buffer",
+        "../media:adapted_video_track_source",
+        "../media:codec",
+        "../media:rtc_audio_video",
+        "../media:rtc_media_base",
+        "../modules/video_coding:video_codec_interface",
+        "../rtc_base:checks",
         "../rtc_base:logging",
-        "../rtc_base:ssl",
-        "../rtc_base:ssl_adapter",
-        "../rtc_base:threading",
-        "//third_party/abseil-cpp/absl/memory",
+        "../rtc_base:timestamp_aligner",
+        "../rtc_base:timeutils",
       ]
       if (is_ios) {
         deps += [ ":native_network_monitor" ]
@@ -1680,8 +1688,6 @@ if (is_ios || is_mac) {
         "objc/native/src/objc_video_frame.mm",
         "objc/native/src/objc_video_renderer.h",
         "objc/native/src/objc_video_renderer.mm",
-        "objc/native/src/objc_video_track_source.h",
-        "objc/native/src/objc_video_track_source.mm",
       ]
 
       configs += [ "..:common_objc" ]
@@ -1702,8 +1708,6 @@ if (is_ios || is_mac) {
         "../api/video:video_rtp_headers",
         "../api/video_codecs:video_codecs_api",
         "../common_video",
-        "../media:adapted_video_track_source",
-        "../media:codec",
         "../media:rtc_audio_video",
         "../media:rtc_media_base",
         "../modules/video_coding:video_codec_interface",
@@ -1752,6 +1756,9 @@ if (is_ios || is_mac) {
         "..:common_objc",
         ":used_from_extension",
       ]
+      if (rtc_use_speech_audio_devices) {
+        configs += [ ":whillats_framework_config" ]
+      }
 
       if (is_ios && rtc_apprtcmobile_broadcast_extension) {
         defines = [ "RTC_APPRTCMOBILE_BROADCAST_EXTENSION" ]
@@ -1779,6 +1786,31 @@ if (is_ios || is_mac) {
         "CoreMedia.framework",
         "CoreVideo.framework",
         "VideoToolbox.framework",
+      ]
+    }
+  }
+}
+
+# Conditionally define the config for Whillats linking
+if (rtc_use_speech_audio_devices) {
+  config("whillats_framework_config") {
+    visibility = [ "*" ]
+    _whillats_config = "release"
+    if (is_debug) {
+      _whillats_config = "debug"
+    }
+
+    if (is_ios) {
+      _whillats_framework_dir = rebase_path("//modules/third_party/whillats/build-ios/bin/" + _whillats_config, root_build_dir)
+      ldflags = [
+        "-F" + _whillats_framework_dir,
+      ]
+      frameworks = [ "whillats.framework" ]
+    } else {
+      _whillats_lib_dir = rebase_path("//modules/third_party/whillats/build/lib/" + _whillats_config, root_build_dir)
+      ldflags = [
+        "-L" + _whillats_lib_dir,
+        "-lwhillats",
       ]
     }
   }

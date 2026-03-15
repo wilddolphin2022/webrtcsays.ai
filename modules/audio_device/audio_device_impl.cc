@@ -197,7 +197,7 @@ int32_t AudioDeviceModuleImpl::CreatePlatformSpecificObjects() {
 #if defined(WEBRTC_SPEECH_DEVICES) 
  // Speech ADM implementation.
   if (audio_layer == kSpeechAudio) {
-    audio_device_.reset(SpeechAudioDeviceFactory::CreateSpeechAudioDevice(nullptr));
+    audio_device_.reset(SpeechAudioDeviceFactory::CreateSpeechAudioDevice());
     RTC_LOG(LS_INFO) << "Whisper Audio Device is on";
     return 0;
   }

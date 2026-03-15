@@ -33,10 +33,7 @@ namespace webrtc {
 class WhisperAudioDevice : public SpeechAudioDevice {
  public:
   // Constructor taking input filename and output log filename
-  WhisperAudioDevice(TaskQueueFactory* task_queue_factory,
-      absl::string_view whisperModelFilename,
-      absl::string_view llamaModelFilename,
-      absl::string_view wavFilename);
+  WhisperAudioDevice(TaskQueueFactory* task_queue_factory);
   virtual ~WhisperAudioDevice();
 
   // Implement all pure virtual methods from AudioDeviceGeneric
@@ -162,20 +159,23 @@ class WhisperAudioDevice : public SpeechAudioDevice {
   int64_t _lastCallPlayoutMillis;
   int64_t _lastCallRecordMillis;
 
-  std::string _whisperModelFilename;
-  std::string _llamaModelFilename;
-  std::string _wavFilename;
-  std::string _llama_model;
-
   FileWrapper _recFile;
   FileWrapper _playFile;
   
-  std::unique_ptr<WhillatsTranscriber> _whisper_transcriber; 
-  std::unique_ptr<WhillatsLlama> _llama_device; 
-  std::unique_ptr<WhillatsTTS> _tts;
+  WhillatsSetAudioCallback _ttsCallback;
+  WhillatsSetResponseCallback _whisperCallback;
+  WhillatsSetLanguageCallback _languageCallback;
+  WhillatsSetResponseCallback _llamaResponseCallback;
+  
+  // Protects concurrent access to _whisper_transcriber across the playout
+  // thread and control thread (StartPlayout / StopPlayout).
+  mutable std::mutex _transcriber_mutex;
+  WhillatsTranscriber* _whisper_transcriber = nullptr; // guarded by _transcriber_mutex
+  WhillatsTTS* _tts = nullptr;
+  WhillatsLlama* _llama_device = nullptr;
 
   std::queue<std::string> _textQueue;
-  std::mutex _queueMutex;
+  absl::Mutex _queueMutex;
   std::condition_variable _queueCondition;
   
   std::vector<uint16_t> _ttsBuffer;  // Instance member to hold TTS audio

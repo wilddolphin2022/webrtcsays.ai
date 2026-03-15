@@ -46,7 +46,7 @@ group("examples") {
     deps += [ ":stun_prober" ]
   }
 
-  if (is_ios || (is_mac && target_cpu != "x86")) {
+  if (is_ios) {
     deps += [ ":AppRTCMobile" ]
   }
 
@@ -228,7 +228,7 @@ if (is_android) {
   }
 }
 
-if (is_ios || (is_mac && target_cpu != "x86")) {
+if (is_ios) {
   config("apprtc_common_config") {
     include_dirs = [ "objc/AppRTCMobile/common" ]
   }
@@ -299,7 +299,6 @@ if (is_ios || (is_mac && target_cpu != "x86")) {
       "../sdk:mediaconstraints_objc",
       "../sdk:peerconnectionfactory_base_objc",
       "../sdk:videocapture_objc",
-      "../sdk:videoframebuffer_objc",
       "../sdk:videosource_objc",
     ]
     frameworks = [
@@ -349,6 +348,7 @@ if (is_ios || (is_mac && target_cpu != "x86")) {
         "../sdk:peerconnectionfactory_base_objc",
         "../sdk:videocapture_objc",
         "../sdk:videocodec_objc",
+        "../sdk:videosource_objc",
       ]
       if (rtc_ios_use_opengl_rendering) {
         deps += [ "../sdk:opengl_ui_objc" ]
@@ -371,6 +371,7 @@ if (is_ios || (is_mac && target_cpu != "x86")) {
         ":AppRTCMobile_lib",
         "../sdk:framework_objc",
         "../sdk:ios_framework_bundle",
+        "../sdk:videosource_objc",
       ]
 
       if (rtc_apprtcmobile_broadcast_extension) {
@@ -382,6 +383,11 @@ if (is_ios || (is_mac && target_cpu != "x86")) {
 
       if (target_cpu == "x86") {
         deps += [ "//testing/iossim" ]
+      }
+
+      # Conditionally link Whillats and its dependencies
+      if (rtc_use_speech_audio_devices) {
+        configs += [ "//sdk:whillats_framework_config" ]
       }
     }
 
@@ -413,8 +419,9 @@ if (is_ios || (is_mac && target_cpu != "x86")) {
 
         deps = [
           ":apprtc_signaling",
-          "../sdk:framework_objc+link",
+          "../sdk:framework_objc",
           "../sdk:ios_framework_bundle",
+          "../sdk:videosource_objc",
         ]
 
         frameworks = [ "ReplayKit.framework" ]
@@ -430,6 +437,7 @@ if (is_ios || (is_mac && target_cpu != "x86")) {
         deps = [
           ":AppRTCMobileBroadcastUpload_lib",
           "../sdk:framework_objc",
+          "../sdk:videosource_objc",
         ]
       }
 
@@ -523,6 +531,8 @@ if (is_ios || (is_mac && target_cpu != "x86")) {
       public_configs = [ "..:common_inherited_config" ]
 
       deps = [ ":ObjCNativeAPIDemo_lib" ]
+      # Link WebRTC framework
+      deps += [ "../sdk:framework_objc", "../sdk:ios_framework_bundle", "../sdk:videosource_objc" ]
 
       if (target_cpu == "x86") {
         deps += [ "//testing/iossim" ]
@@ -547,10 +557,9 @@ if (is_ios || (is_mac && target_cpu != "x86")) {
         "../sdk:helpers_objc",
         "../sdk:mediaconstraints_objc",
         "../sdk:metal_objc",
-        "../sdk:peerconnectionfactory_base_objc",
-        "../sdk:peerconnectionfactory_base_objc",
-        "../sdk:videocapture_objc",
-        "../sdk:videocodec_objc",
+        "../sdk:mac_framework_objc",
+        "../sdk:mac_framework_bundle",
+        "../sdk:videosource_objc",
       ]
     }
 
@@ -575,6 +584,7 @@ if (is_ios || (is_mac && target_cpu != "x86")) {
         ":AppRTCMobile_lib",
         "../sdk:mac_framework_bundle",
         "../sdk:mac_framework_objc+link",
+        "../sdk:videosource_objc",
       ]
     }
   }
@@ -730,7 +740,6 @@ if (is_linux || is_chromeos || is_win) {
       "../test:frame_generator_capturer",
       "../test:platform_video_capturer",
       "../test:rtp_test_utils",
-      "../test:test_video_capturer",
       "//third_party/abseil-cpp/absl/memory",
       "//third_party/jsoncpp",
     ]
@@ -752,6 +761,7 @@ if (is_linux || is_chromeos || is_win) {
         "peerconnection/client/linux/main.cc",
         "peerconnection/client/linux/main_wnd.cc",
         "peerconnection/client/linux/main_wnd.h",
+        "fake_whillats.cc",
       ]
       cflags = [ "-Wno-deprecated-declarations" ]
       libs = [
@@ -817,7 +827,7 @@ if (is_linux || is_chromeos || is_win) {
   }
   rtc_executable("turnserver") {
     testonly = true
-    sources = [ "turnserver/turnserver_main.cc" ]
+    sources = [ "turnserver/turnserver_main.cc", "fake_whillats.cc" ]
     deps = [
       ":read_auth_file",
       "../p2p:basic_packet_socket_factory",
@@ -893,114 +903,355 @@ if (!build_with_chromium) {
     }
   }
 
-  rtc_executable("direct") {
+  if (is_ios) {
+    action_foreach("create_bracket_include_headers_direct_framework") {
+      script = "//tools_webrtc/apple/copy_framework_header.py"
+      sources = [
+        "direct/direct.h",
+        "direct/option.h",
+        "direct/client.h",
+        "direct/wsock.h"
+      ]
+      outputs = [
+        "$target_gen_dir/direct.framework/Headers/{{source_file_part}}",
+      ]
+      args = [
+        "--input",
+        "{{source}}",
+        "--output",
+        rebase_path(target_gen_dir, root_build_dir) +
+            "/direct.framework/Headers/{{source_file_part}}",
+      ]
+    }
+
+    ios_framework_bundle("direct_framework") {
+      info_plist = "direct/Info.plist"
+      output_name = "direct"  # Base name for the framework (direct.framework)
+      configs += [ "//:common_inherited_config" ]
+      if (!defined(testonly) || !testonly) {
+        configs += rtc_prod_configs
+      }
+      configs += rtc_library_impl_config
+      configs -= rtc_remove_configs
+
+      testonly = true
+      defines = [ "WEBRTC_LIBRARY_IMPL" ]
+      include_dirs = []
+      sources = [
+        "direct/direct.h",
+        "direct/option.h",
+        "direct/direct.cc",
+        "direct/dirobjc.mm",
+        "direct/caller.cc",
+        "direct/callee.cc",
+        "direct/peer.cc",
+        "direct/option.cc",
+        "direct/client.cc",
+        "direct/wsock.cc",
+        "direct/wsock.h",
+        "direct/client.h",
+      ]
+
+      # Use the output of the action_foreach target for public headers
+      public_headers = get_target_outputs(":create_bracket_include_headers_direct_framework")
+
+      if(is_debug) {
+        cflags = ["-gdwarf-4", "-O0"]         
+      }
+      #cflags += [ "-mmacosx-version-min=15.0.0" ]
+
+      include_dirs += [ 
+        "../third_party/boringssl/src/include",
+        "../third_party/jsoncpp/source/include",
+        "../sdk/objc/base",
+      ]
+      if (rtc_use_speech_audio_devices) {
+        defines += [ "WEBRTC_SPEECH_DEVICES" ]
+      }
+
+      deps = [
+        ":create_bracket_include_headers_direct_framework",
+        "//sdk/objc/native/src:native_src_objc",
+        "//sdk:native_video",
+        "//sdk:framework_objc_signed_bundle",
+        "//api:async_dns_resolver",
+        "//api:audio_options_api",
+        "//api:create_peerconnection_factory",
+        "//api:libjingle_peerconnection_api",
+        "//api:media_stream_interface",
+        "//api:rtp_sender_interface",
+        "//api:scoped_refptr",
+        "//api/audio:audio_device",
+        "//api/audio:audio_mixer_api",
+        "//api/audio:audio_processing",
+        "//api/audio_codecs:audio_codecs_api",
+        "//api/audio_codecs:builtin_audio_decoder_factory",
+        "//api/audio_codecs:builtin_audio_encoder_factory",
+        "//api/task_queue:pending_task_safety_flag",
+        "//api/units:time_delta",
+        "//api/video:video_frame",
+        "//api/video:video_rtp_headers",
+        "//api/video_codecs:video_codecs_api",
+        "//media:media_channel",
+        "//media:video_common",
+        "//p2p:connection",
+        "//p2p:port_allocator",
+        "//pc:video_track_source",
+        "//rtc_base:async_dns_resolver",
+        "//rtc_base:checks",
+        "//rtc_base:logging",
+        "//rtc_base:macromagic",
+        "//rtc_base:net_helpers",
+        "//rtc_base:socket_server",
+        "//rtc_base:socket_address_pair",
+        "//rtc_base:refcount",
+        "//rtc_base:rtc_certificate_generator",
+        "//rtc_base:ssl_adapter",
+        "//rtc_base:stringutils",
+        "//rtc_base:threading",
+        "//rtc_base/third_party/sigslot",
+        "//system_wrappers:field_trial",
+        "//third_party/abseil-cpp/absl/memory",
+        "//third_party/jsoncpp:jsoncpp",
+        "//pc:pc_test_utils",
+        "//third_party/abseil-cpp/absl/types:optional",
+      ]
+
+      frameworks = [
+        "Foundation.framework",
+        "AVFoundation.framework",
+        "CoreMedia.framework",
+        "CoreVideo.framework",
+        "CoreGraphics.framework",
+        "AudioToolbox.framework",
+        "VideoToolbox.framework",
+      ]
+
+      # Conditionally add the whillats config for direct_framework
+      if (rtc_use_speech_audio_devices) {
+        configs += [ "//sdk:whillats_framework_config" ]
+      }
+    }
+
+  } else {
+    # Keep the original shared_library definition for non-iOS platforms
+    shared_library("directlib") {
+      output_name = "direct"
+      configs += [ "//:common_inherited_config" ]
+      if (!defined(testonly) || !testonly) {
+        configs += rtc_prod_configs
+      }
+      configs += rtc_library_impl_config
+      configs -= rtc_remove_configs
+
+      testonly = true
+      defines = []
+      include_dirs = []
+      sources = [
+        "direct/direct.h",
+        "direct/option.h",
+        "direct/direct.cc",
+        "direct/dirobjc.mm",
+        "direct/caller.cc",
+        "direct/callee.cc",
+        "direct/peer.cc",
+        "direct/option.cc",
+        "direct/client.cc",
+        "direct/wsock.cc",
+        "direct/wsock.h",
+        "direct/client.h",
+      ]
+
+      if (rtc_use_speech_audio_devices) {
+        defines += [ "WEBRTC_SPEECH_DEVICES" ]
+      }
+
+      cflags = []
+      if (is_mac) {
+        cflags += [ "-mmacosx-version-min=15.0.0" ]
+      }
+      if(is_debug) {
+        cflags += ["-gdwarf-4", "-O0"]         
+      }
+      
+      include_dirs += [ 
+        "../third_party/boringssl/src/include",
+        "../third_party/jsoncpp/source/include",
+        "../sdk/objc/base",
+      ]
+
+      deps = [
+        #"//sdk/dylib:webrtc_dylib",
+        # ... (keep original deps for non-iOS) ...
+        "../api:async_dns_resolver",
+        "../api:audio_options_api",
+        "../api:create_peerconnection_factory",
+        "../api:libjingle_peerconnection_api",
+        "../api:media_stream_interface",
+        "../api:rtp_sender_interface",
+        "../api:scoped_refptr",
+        "../api/audio:audio_device",
+        "../api/audio:audio_mixer_api",
+        "../api/audio:audio_processing",
+        "../api/audio_codecs:audio_codecs_api",
+        "../api/audio_codecs:builtin_audio_decoder_factory",
+        "../api/audio_codecs:builtin_audio_encoder_factory",
+        "../api/video_codecs:video_decoder_factory_template",
+        "../api/video_codecs:video_decoder_factory_template_dav1d_adapter",
+        "../api/video_codecs:video_decoder_factory_template_libvpx_vp8_adapter",
+        "../api/video_codecs:video_decoder_factory_template_libvpx_vp9_adapter",
+        "../api/video_codecs:video_decoder_factory_template_open_h264_adapter",
+        "../api/video_codecs:video_encoder_factory_template",
+        "../api/video_codecs:video_encoder_factory_template_libaom_av1_adapter",
+        "../api/video_codecs:video_encoder_factory_template_libvpx_vp8_adapter",
+        "../api/video_codecs:video_encoder_factory_template_libvpx_vp9_adapter",
+        "../api/video_codecs:video_encoder_factory_template_open_h264_adapter",
+        "//modules/video_coding:webrtc_vp8",
+        "../api/task_queue:pending_task_safety_flag",
+        "../api/units:time_delta",
+        "../api/video:video_frame",
+        "../api/video:video_rtp_headers",
+        "../api/video_codecs:video_codecs_api",
+        "../media:media_channel",
+        "../media:video_common",
+        "../media:rtc_media_tests_utils",
+        "../p2p:connection",
+        "../p2p:port_allocator",
+        "../pc:video_track_source",
+        "../rtc_base:async_dns_resolver",
+        "../rtc_base:checks",
+        "../rtc_base:logging",
+        "../rtc_base:macromagic",
+        "../rtc_base:net_helpers",
+        "../rtc_base:socket_server",
+        "../rtc_base:socket_address_pair",
+        "../rtc_base:refcount",
+        "../rtc_base:rtc_certificate_generator",
+        "../rtc_base:ssl_adapter",
+        "../rtc_base:stringutils",
+        "../rtc_base:threading",
+        "../rtc_base/third_party/sigslot",
+        "../rtc_base:task_queue_for_test",
+        "../system_wrappers:field_trial",
+        "../test:field_trial",
+        "../test:platform_video_capturer",
+        "../test:rtp_test_utils",
+        "../test:test_video_capturer",
+        "../rtc_base:task_queue_for_test",
+        "//third_party/abseil-cpp/absl/memory",
+        "//third_party/jsoncpp:jsoncpp",
+      ]
+
+      if (rtc_use_speech_audio_devices) {
+        if (is_mac) {
+          frameworks = [ "CoreAudio.framework" ]
+          if (is_debug) {
+            whillats_subdir = "debug"
+          } else {
+            whillats_subdir = "release"
+          }
+          # Link directly to the dylib to avoid -l resolution issues
+          if (!defined(ldflags)) { ldflags = [] }
+          ldflags += [ rebase_path("//modules/third_party/whillats/build/lib/" + whillats_subdir + "/libwhillats.dylib", root_build_dir) ]
+        } else if (is_linux) {
+          if (is_debug) {
+            whillats_subdir = "debug"
+          } else {
+            whillats_subdir = "release"
+          }
+          lib_dirs = [ "../modules/third_party/whillats/build/lib/" + whillats_subdir ]
+          libs = [ "whillats", "whisper", "espeak-ng", "speechPlayer", "ucd", "mtmd_shared" ]
+        }
+      }
+
+      if (is_mac) {
+        if (!defined(ldflags)) { ldflags = [] }
+        ldflags += [ "-mmacosx-version-min=15.0.0", "-install_name", "@rpath/libdirect.dylib" ]
+        ldflags += [ "-Wl,-rpath,@loader_path/../Default" ] # Adjust rpath if needed
+      } else if (is_linux) {
+        if (!defined(ldflags)) { ldflags = [] }
+        ldflags += [ "-Wl,-rpath,\$ORIGIN" ] # Standard rpath for Linux dylibs
+      }
+      configs += []
+    }
+  }
+
+  rtc_executable("directcall") {
     testonly = true
     defines = []
     include_dirs = []
-    sources = [
-      "direct/direct.h",
-      "direct/utils.h",
-      "direct/direct.cc",
-      "direct/caller.cc",
-      "direct/callee.cc",
-      "direct/peer.cc",
-      "direct/utils.cc",
-    ]
+    sources = [ "direct/main.cc" ]
 
-    cflags = [ "-g", "-O0" ]
-    include_dirs += [ "../third_party/boringssl/src/include" ]
-
-    if (rtc_use_speech_audio_devices) {
-      defines += [ "WEBRTC_SPEECH_DEVICES" ]
-      include_dirs += [ "../modules/third_party/espeak-ng/src/include" ]
+    # Only set the minimum macOS deployment version for macOS builds.
+    cflags = []
+    if (is_mac) {
+      cflags += [ "-mmacosx-version-min=15.0.0" ]
+    }
+    if (is_debug) {
+      cflags += [ "-gdwarf-4", "-O0" ]
     }
 
-    deps = [
-      "../api:async_dns_resolver",
-      "../api:audio_options_api",
-      "../api:create_peerconnection_factory",
-      "../api:libjingle_peerconnection_api",
-      "../api:media_stream_interface",
-      "../api:rtp_sender_interface",
-      "../api:scoped_refptr",
-      "../api/audio:audio_device",
-      "../api/audio:audio_mixer_api",
-      "../api/audio:audio_processing",
-      "../api/audio_codecs:audio_codecs_api",
-      "../api/audio_codecs:builtin_audio_decoder_factory",
-      "../api/audio_codecs:builtin_audio_encoder_factory",
-      "../api/video_codecs:video_decoder_factory_template",
-      "../api/video_codecs:video_decoder_factory_template_dav1d_adapter",
-      "../api/video_codecs:video_decoder_factory_template_libvpx_vp8_adapter",
-      "../api/video_codecs:video_decoder_factory_template_libvpx_vp9_adapter",
-      "../api/video_codecs:video_decoder_factory_template_open_h264_adapter",
-      "../api/video_codecs:video_encoder_factory_template",
-      "../api/video_codecs:video_encoder_factory_template_libaom_av1_adapter",
-      "../api/video_codecs:video_encoder_factory_template_libvpx_vp8_adapter",
-      "../api/video_codecs:video_encoder_factory_template_libvpx_vp9_adapter",
-      "../api/video_codecs:video_encoder_factory_template_open_h264_adapter",
-      "../api/task_queue:pending_task_safety_flag",
-      "../api/units:time_delta",
-      "../api/video:video_frame",
-      "../api/video:video_rtp_headers",
-      "../api/video_codecs:video_codecs_api",
-      "../media:media_channel",
-      "../media:video_common",
-      "../p2p:connection",
-      "../p2p:port_allocator",
-      "../pc:video_track_source",
-      "../rtc_base:async_dns_resolver",
-      "../rtc_base:checks",
-      "../rtc_base:logging",
-      "../rtc_base:macromagic",
-      "../rtc_base:net_helpers",
-      "../rtc_base:socket_server",
-      "../rtc_base:socket_address_pair",
-      "../rtc_base:refcount",
-      "../rtc_base:rtc_certificate_generator",
-      "../rtc_base:ssl_adapter",
-      "../rtc_base:stringutils",
-      "../rtc_base:threading",
-      "../rtc_base/third_party/sigslot",
-      "../system_wrappers:field_trial",
-      "../test:field_trial",
-      "../test:platform_video_capturer",
-      "../test:rtp_test_utils",
-      "//third_party/abseil-cpp/absl/memory",
-    ]
- 
-    # WebRTCsays.ai stuff
-    if(rtc_use_speech_audio_devices) {
-      lib_dirs = [
-        "../../src/modules/third_party/whillats/build/bin",
+    include_dirs += [ "../third_party/boringssl/src/include" ]
+    include_dirs += [ "../third_party/jsoncpp/source/include" ]
+
+    if (is_ios) {
+      # Link against the framework on iOS
+      # Ensure dependency on both the framework and the correct header processing action
+      deps = [ ":direct_framework", ":create_bracket_include_headers_direct_framework" ]
+      if (rtc_use_speech_audio_devices) {
+        configs       += [ "//sdk:whillats_framework_config" ]
+      }       
+      # Add the framework itself and the main WebRTC framework to link
+      if (!defined(framework_dirs)) { framework_dirs = [] } # Ensure list exists
+      framework_dirs += [ root_out_dir ]                    # Add path to built framework
+      if (!defined(ldflags)) { ldflags = [] }
+      # Set rpath to find the framework within the app bundle
+      ldflags += [ "-Wl,-rpath,@executable_path/Frameworks" ]
+      # Explicitly add framework link flags
+      ldflags += [ 
+        "-framework", "direct", 
+        "-framework", "WebRTC"
       ]
-      
-      libs = [
-        "whillats",
-        "whisper",
-        "llama",
-        "ggml",
-        "ggml-base",
-        "ggml-cpu",
-      ]
-      if(is_linux) {
-        libs += [
-          "stdc++"
-        ]
-        lib_dirs += ["/usr/lib/x86_64-linux-gnu"]
-        ldflags = [
-          "-Wl,--allow-shlib-undefined",
-        ]
+
+    } else {
+      # Link against the shared library on other platforms
+      deps = [ ":directlib" ]
+      if (is_mac) {
+        if (!defined(ldflags)) { ldflags = [] }
+        ldflags += [ "-Wl,-rpath,@loader_path/" ]
+        ldflags += [ "-Wl,-rpath,@loader_path/../Default" ] # Adjust as needed
+      } else if (is_linux) {
+          if (!defined(ldflags)) { ldflags = [] }
+          # Need rpath to find directlib relative to executable
+          ldflags += [ "-Wl,-rpath,\$ORIGIN" ]
       }
-      else if(is_mac) {
-        frameworks = [ "CoreAudio.framework" ]
-        ldflags = [
-          "-Wl,-rpath,@loader_path/../../modules/third_party/whillats/build/bin",  # Relative to the executable
-        ]
-      }    
-    } 
-    
+    }
+
+    # Restore speech device libs/ldflags if needed (primarily for non-iOS)
+      if(!is_ios && rtc_use_speech_audio_devices) {
+      if(is_mac) {
+        frameworks = [ "CoreAudio.framework" ] # System framework
+        if (is_debug) {
+          whillats_subdir = "debug"
+        } else {
+          whillats_subdir = "release"
+        }
+        ldflags += [ "-Wl,-rpath,@loader_path/../../modules/third_party/whillats/build/lib/" + whillats_subdir ]
+        # Link the dylib explicitly to satisfy the linker
+        if (!defined(ldflags)) { ldflags = [] }
+        ldflags += [ rebase_path("//modules/third_party/whillats/build/lib/" + whillats_subdir + "/libwhillats.dylib", root_build_dir) ]
+      } else if (is_linux) {
+          if (is_debug) {
+            whillats_subdir = "debug"
+          } else {
+            whillats_subdir = "release"
+          }
+          lib_dirs = [ "../modules/third_party/whillats/build/lib/" + whillats_subdir ]
+          libs = [ "whillats", "whisper", "espeak-ng", "speechPlayer", "ucd", "mtmd_shared" ]
+          ldflags += [ "-Wl,-rpath,\$ORIGIN/../../modules/third_party/whillats/build/lib/" + whillats_subdir ]
+      }
+    }
+
     configs += []
   }
-
 }
