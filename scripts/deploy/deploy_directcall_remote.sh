@@ -20,9 +20,11 @@ CALLEE_ROOM="${CALLEE_ROOM:-room101}"
 MODELS_PATH="${MODELS_PATH:-/opt/models}"
 HF_TOKEN="${HF_TOKEN:-}"
 WHISPER_MODEL_URL="${WHISPER_MODEL_URL:-https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin}"
-LLAMA_MODEL_URL="${LLAMA_MODEL_URL:-https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/resolve/main/Qwen3.5-9B-Q3_K_M.gguf}"
+LLAMA_MODEL_URL="${LLAMA_MODEL_URL:-https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf}"
+LLAMA_9B_URL="https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/resolve/main/Qwen3.5-9B-Q3_K_M.gguf"
+LLAMA_9B_FILE="Qwen3.5-9B-Q3_K_M.gguf"
 WHISPER_MODEL_FILE="${WHISPER_MODEL_FILE:-ggml-small.bin}"
-LLAMA_MODEL_FILE="${LLAMA_MODEL_FILE:-Qwen3.5-9B-Q3_K_M.gguf}"
+LLAMA_MODEL_FILE="${LLAMA_MODEL_FILE:-Qwen2.5-1.5B-Instruct-Q4_K_M.gguf}"
 
 if [ ! -f "${ARTIFACT_PATH}" ]; then
   echo "Artifact not found: ${ARTIFACT_PATH}"
@@ -64,7 +66,7 @@ HF_AUTH=""
 if [ -n "${HF_TOKEN}" ]; then
   HF_AUTH="--header 'Authorization: Bearer ${HF_TOKEN}'"
 fi
-ssh "${SSH_OPTS[@]}" "${REMOTE}" "mkdir -p '${MODELS_PATH}'; if [ ! -f '${MODELS_PATH}/${WHISPER_MODEL_FILE}' ]; then echo 'Downloading Whisper model...'; curl -L ${HF_AUTH} -o '${MODELS_PATH}/${WHISPER_MODEL_FILE}' '${WHISPER_MODEL_URL}'; else echo 'Whisper model already present'; fi; if [ ! -f '${MODELS_PATH}/${LLAMA_MODEL_FILE}' ]; then echo 'Downloading LLM model...'; curl -L ${HF_AUTH} -o '${MODELS_PATH}/${LLAMA_MODEL_FILE}' '${LLAMA_MODEL_URL}'; else echo 'LLM model already present'; fi; ls -lh '${MODELS_PATH}/'"
+ssh "${SSH_OPTS[@]}" "${REMOTE}" "mkdir -p '${MODELS_PATH}'; if [ ! -f '${MODELS_PATH}/${WHISPER_MODEL_FILE}' ]; then echo 'Downloading Whisper model...'; curl -L ${HF_AUTH} -o '${MODELS_PATH}/${WHISPER_MODEL_FILE}' '${WHISPER_MODEL_URL}'; else echo 'Whisper model already present'; fi; if [ ! -f '${MODELS_PATH}/${LLAMA_MODEL_FILE}' ]; then echo 'Downloading LLM 1.5B model...'; curl -L ${HF_AUTH} -o '${MODELS_PATH}/${LLAMA_MODEL_FILE}' '${LLAMA_MODEL_URL}'; else echo 'LLM 1.5B model already present'; fi; if [ ! -f '${MODELS_PATH}/${LLAMA_9B_FILE}' ]; then echo 'Downloading LLM 9B model...'; curl -L ${HF_AUTH} -o '${MODELS_PATH}/${LLAMA_9B_FILE}' '${LLAMA_9B_URL}'; else echo 'LLM 9B model already present'; fi; ls -lh '${MODELS_PATH}/'"
 
 echo "[deploy] Installing and configuring coturn TURN server"
 ssh "${SSH_OPTS[@]}" "${REMOTE}" "if ! command -v turnserver >/dev/null 2>&1; then apt-get install -y -qq coturn 2>/dev/null; fi; SERVER_IP=\$(ip -4 addr show eth0 | grep -oP '(?<=inet )[\d.]+' | head -1); if [ ! -f /etc/turnserver.conf ] || ! grep -q 'wilddolphin.us' /etc/turnserver.conf 2>/dev/null; then echo 'Configuring coturn...'; if [ -f '${DEPLOY_PATH}/cert.pem' ]; then cp '${DEPLOY_PATH}/cert.pem' /etc/turn_cert.pem; cp '${DEPLOY_PATH}/key.pem' /etc/turn_key.pem; chown turnserver:turnserver /etc/turn_cert.pem /etc/turn_key.pem 2>/dev/null || true; chmod 600 /etc/turn_key.pem; fi; cat > /etc/turnserver.conf <<TURNEOF
@@ -94,7 +96,7 @@ systemctl enable coturn && systemctl restart coturn; echo 'coturn configured'; e
 WHILLATS_BRANCH="${WHILLATS_BRANCH:-talkingface}"
 WHILLATS_DIR="/opt/whillats"
 echo "[deploy] Building whillats on remote (branch: ${WHILLATS_BRANCH})"
-ssh "${SSH_OPTS[@]}" "${REMOTE}" "apt-get install -y -qq build-essential cmake git autoconf automake libtool pkg-config libasound2-dev libgomp1 espeak-ng espeak-ng-data 2>/dev/null; mkdir -p /usr/local/share && ESPEAK_SRC=\$(find /usr/lib -name espeak-ng-data -type d 2>/dev/null | head -1); [ -n \"\${ESPEAK_SRC}\" ] && ln -sf \"\${ESPEAK_SRC}\" /usr/local/share/espeak-ng-data 2>/dev/null || true; if [ ! -d '${WHILLATS_DIR}/.git' ]; then rm -rf '${WHILLATS_DIR}'; git clone --branch '${WHILLATS_BRANCH}' --recursive https://github.com/wilddolphin2025/whillats.git '${WHILLATS_DIR}'; else cd '${WHILLATS_DIR}' && git remote set-url origin https://github.com/wilddolphin2025/whillats.git && git fetch origin '${WHILLATS_BRANCH}' && git checkout -B '${WHILLATS_BRANCH}' 'origin/${WHILLATS_BRANCH}' && git submodule update --init --recursive; fi && cd '${WHILLATS_DIR}' && cmake -B build -DCMAKE_BUILD_TYPE=Release -DGGML_CUDA=OFF -DWHISPER_CUDA=OFF -DGGML_CUBLAS=OFF -DLLAMA_CUDA=OFF 2>&1 | tail -3 && cmake --build build --config Release --parallel \$(nproc) --target whillats 2>&1 | tail -5 && cp build/lib/Release/libwhillats.so '${DEPLOY_PATH}/lib/libwhillats.so' && cp -n build/_deps/onnxruntime-src/lib/libonnxruntime.so* '${DEPLOY_PATH}/lib/' 2>/dev/null || true && echo 'whillats built and installed'"
+ssh "${SSH_OPTS[@]}" "${REMOTE}" "apt-get install -y -qq build-essential cmake git autoconf automake libtool pkg-config libasound2-dev libgomp1 espeak-ng espeak-ng-data 2>/dev/null; mkdir -p /usr/local/share && ESPEAK_SRC=\$(find /usr/lib -name espeak-ng-data -type d 2>/dev/null | head -1); [ -n \"\${ESPEAK_SRC}\" ] && ln -sf \"\${ESPEAK_SRC}\" /usr/local/share/espeak-ng-data 2>/dev/null || true; if [ ! -d '${WHILLATS_DIR}/.git' ]; then rm -rf '${WHILLATS_DIR}'; git clone --branch '${WHILLATS_BRANCH}' --recursive https://github.com/wilddolphin2025/whillats.git '${WHILLATS_DIR}'; else cd '${WHILLATS_DIR}' && git remote set-url origin https://github.com/wilddolphin2025/whillats.git && git fetch origin '${WHILLATS_BRANCH}' && git checkout -B '${WHILLATS_BRANCH}' 'origin/${WHILLATS_BRANCH}' && git submodule update --init --recursive; fi && cd '${WHILLATS_DIR}' && cmake -B build -DCMAKE_BUILD_TYPE=Release -DGGML_CUDA=OFF -DWHISPER_CUDA=OFF -DGGML_CUBLAS=OFF -DLLAMA_CUDA=OFF 2>&1 | tail -3 && cmake --build build --config Release --parallel \$(nproc) --target whillats 2>&1 | tail -5 && cp build/lib/Release/libwhillats.so '${DEPLOY_PATH}/lib/libwhillats.so' && cp -n build/_deps/onnxruntime-src/lib/libonnxruntime.so* '${DEPLOY_PATH}/lib/' 2>/dev/null || true && mkdir -p build/bin/Release && if [ -d build/_deps/espeak-ng-proj-build/espeak-ng-data ] && [ ! -d build/bin/Release/espeak-ng-data ]; then cp -a build/_deps/espeak-ng-proj-build/espeak-ng-data build/bin/Release/espeak-ng-data; fi && echo 'whillats built and installed'"
 
 STYLETTS2_HF_REPO="DDATT/StyleTTS2-ONNX-Cpp"
 STYLETTS2_MODEL_DIR="/opt/whillats/trained_models"

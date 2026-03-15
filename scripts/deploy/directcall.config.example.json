@@ -10,7 +10,7 @@
   "bonjour": false,
   "language": "en",
   "whisper_model": "/opt/models/ggml-small.bin",
-  "llama_model": "/opt/models/Qwen3.5-9B-Q3_K_M.gguf",
+  "llama_model": "/opt/models/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf",
   "webrtc_cert_path": "/opt/directcall/cert.pem",
   "webrtc_key_path": "/opt/directcall/key.pem",
   "webrtc_speech_initial_playout_wav": "",
