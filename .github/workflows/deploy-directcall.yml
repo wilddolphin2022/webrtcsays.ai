@@ -77,6 +77,7 @@ jobs:
           ENABLE_SIGNAL_BRIDGE: ${{ inputs.enable_signal_bridge }}
           BRIDGE_ROOM: ${{ inputs.bridge_room }}
           SIGNAL_BASE_URL: ${{ inputs.signal_base_url }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           chmod +x scripts/deploy/deploy_directcall_remote.sh
           scripts/deploy/deploy_directcall_remote.sh dist/directcall-linux.tar.gz dist/directcall-config.json
