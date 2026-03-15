@@ -40,14 +40,15 @@ if [ ! -f "${CONFIG_PATH}" ]; then
 fi
 
 SSH_OPTS=(-i "${SSH_KEY_PATH}" -p "${DEPLOY_PORT}" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null)
+SCP_OPTS=(-i "${SSH_KEY_PATH}" -P "${DEPLOY_PORT}" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null)
 REMOTE="${DEPLOY_USER}@${DEPLOY_HOST}"
 TMP_TAR="/tmp/directcall-linux.tar.gz"
 TMP_CONFIG="/tmp/directcall-config.json"
 
 echo "[deploy] Uploading artifact to ${REMOTE}:${TMP_TAR}"
-scp "${SSH_OPTS[@]}" "${ARTIFACT_PATH}" "${REMOTE}:${TMP_TAR}"
+scp "${SCP_OPTS[@]}" "${ARTIFACT_PATH}" "${REMOTE}:${TMP_TAR}"
 echo "[deploy] Uploading config to ${REMOTE}:${TMP_CONFIG}"
-scp "${SSH_OPTS[@]}" "${CONFIG_PATH}" "${REMOTE}:${TMP_CONFIG}"
+scp "${SCP_OPTS[@]}" "${CONFIG_PATH}" "${REMOTE}:${TMP_CONFIG}"
 
 echo "[deploy] Installing on remote host"
 ssh "${SSH_OPTS[@]}" "${REMOTE}" "mkdir -p '${DEPLOY_PATH}' && tar -xzf '${TMP_TAR}' -C '${DEPLOY_PATH}' --strip-components=1 && mv '${TMP_CONFIG}' '${DEPLOY_PATH}/config.talking-face.json' && chmod +x '${DEPLOY_PATH}/directcall' '${DEPLOY_PATH}/run-directcall.sh' && rm -f '${TMP_TAR}'"
