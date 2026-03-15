@@ -167,19 +167,29 @@ if [ -f ".gn" ]; then
   cp ".gn" ".gn.ci.bak"
   python3 - <<'PY'
 from pathlib import Path
+import re
 
 p = Path(".gn")
-lines = p.read_text().splitlines()
+text = p.read_text()
 
-# Remove lines that restrict exec_script or export_compile_commands
-lines = [ln for ln in lines
-         if not ln.strip().startswith("export_compile_commands")
-         and "exec_script_whitelist" not in ln
-         and "exec_script_allowlist" not in ln]
+# Remove import of dotfile_settings (not needed once we strip its uses)
+text = re.sub(r'import\("//build/dotfile_settings\.gni"\)\n?', '', text)
 
-p.write_text("\n".join(lines) + "\n")
+# Remove exec_script_whitelist block (may span multiple lines with + continuation)
+text = re.sub(r'exec_script_whitelist\s*=\s*[^\n]*(?:\n\s*[^\n]*\])?', '', text)
+
+# Remove export_compile_commands
+text = re.sub(r'export_compile_commands\s*=\s*\[[^\]]*\]\n?', '', text)
+
+# Remove no_check_targets block (multi-line list)
+text = re.sub(r'no_check_targets\s*=\s*\[.*?\]\n?', '', text, flags=re.DOTALL)
+
+# Remove any remaining build_dotfile_settings references
+text = re.sub(r'[^\n]*build_dotfile_settings[^\n]*\n?', '', text)
+
+p.write_text(text)
 PY
-  echo "[build] patched .gn: removed exec_script restrictions for CI"
+  echo "[build] patched .gn: stripped dotfile_settings, exec_script, no_check_targets for CI"
 fi
 
 if [ -f "BUILD.gn" ] && rg '^\s*"sdk",\s*$' "BUILD.gn" >/dev/null 2>&1; then
