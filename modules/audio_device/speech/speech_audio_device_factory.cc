@@ -78,6 +78,18 @@ WhillatsLlama* SpeechAudioDeviceFactory::CreateWhillatsLlama(WhillatsSetResponse
   return nullptr;
 }
 
+void SpeechAudioDeviceFactory::PreloadLlama(WhillatsSetResponseCallback &llamaCallback) {
+  if (_llamaEnabled && !_llamaDevice) {
+    RTC_LOG(LS_INFO) << "PreloadLlama: loading model " << _llamaModelFilename;
+    _llamaDevice = std::make_unique<WhillatsLlama>(_llamaModelFilename.c_str(), _llavaMMProjFilename.c_str(), llamaCallback);
+    if (_llamaDevice && _llamaDevice->start()) {
+      RTC_LOG(LS_INFO) << "PreloadLlama: model loaded and ready";
+    } else {
+      RTC_LOG(LS_ERROR) << "PreloadLlama: failed to load model";
+    }
+  }
+}
+
 void SpeechAudioDeviceFactory::NotifyText(const std::string& text, const std::string& language) { 
   if(!_ttsDevice) {
     static AudioCallback ttsCallback = [](bool success, const uint16_t* buffer, size_t buffer_size, void* user_data) {};

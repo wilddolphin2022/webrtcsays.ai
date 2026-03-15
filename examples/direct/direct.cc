@@ -575,10 +575,10 @@ bool DirectApplication::CreatePeerConnection() {
     webrtc::SpeechAudioDeviceFactory::SetLlamaEnabled(true);
     webrtc::SpeechAudioDeviceFactory::SetLlamaModelFilename(opts_.llama_model);
     webrtc::SpeechAudioDeviceFactory::SetLlavaMMProjFilename(opts_.llava_mmproj);
-    //llama_ = nullptr; // uncomment to send message instead of audio 
 #if LLAMA_NOTIFICATION_ENABLED
     llama_ = webrtc::SpeechAudioDeviceFactory::CreateWhillatsLlama(llamaCallback_);
 #endif
+    webrtc::SpeechAudioDeviceFactory::PreloadLlama(llamaCallback_);
   } 
 
   if (opts_.whisper && !opts_.whisper_model.empty()) {

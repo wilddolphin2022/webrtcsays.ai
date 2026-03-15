@@ -77,6 +77,7 @@ class SpeechAudioDeviceFactory {
     WhillatsSetLanguageCallback &languageCallback);
   static WhillatsLlama* CreateWhillatsLlama(
     WhillatsSetResponseCallback &llamaCallback);
+  static void PreloadLlama(WhillatsSetResponseCallback &llamaCallback);
 
   friend class WhisperAudioDevice;
  private:
