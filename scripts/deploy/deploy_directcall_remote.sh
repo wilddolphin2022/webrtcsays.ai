@@ -19,6 +19,7 @@ CALLEE_PORT="${CALLEE_PORT:-3456}"
 CALLEE_ROOM="${CALLEE_ROOM:-room101}"
 MODELS_PATH="${MODELS_PATH:-/opt/models}"
 HF_TOKEN="${HF_TOKEN:-}"
+SKIP_COTURN="${SKIP_COTURN:-false}"
 WHISPER_MODEL_URL="${WHISPER_MODEL_URL:-https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin}"
 LLAMA_MODEL_URL="${LLAMA_MODEL_URL:-https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf}"
 LLAMA_9B_URL="https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/resolve/main/Qwen3.5-9B-Q3_K_M.gguf"
@@ -81,6 +82,9 @@ if [ -n "${HF_TOKEN}" ]; then
 fi
 ssh "${SSH_OPTS[@]}" "${REMOTE}" "mkdir -p '${MODELS_PATH}'; if [ ! -f '${MODELS_PATH}/${WHISPER_MODEL_FILE}' ]; then echo 'Downloading Whisper model...'; curl -L ${HF_AUTH} -o '${MODELS_PATH}/${WHISPER_MODEL_FILE}' '${WHISPER_MODEL_URL}'; else echo 'Whisper model already present'; fi; if [ ! -f '${MODELS_PATH}/${LLAMA_MODEL_FILE}' ]; then echo 'Downloading LLM 1.5B model...'; curl -L ${HF_AUTH} -o '${MODELS_PATH}/${LLAMA_MODEL_FILE}' '${LLAMA_MODEL_URL}'; else echo 'LLM 1.5B model already present'; fi; if [ ! -f '${MODELS_PATH}/${LLAMA_9B_FILE}' ]; then echo 'Downloading LLM 9B model...'; curl -L ${HF_AUTH} -o '${MODELS_PATH}/${LLAMA_9B_FILE}' '${LLAMA_9B_URL}'; else echo 'LLM 9B model already present'; fi; ls -lh '${MODELS_PATH}/'"
 
+if [ "${SKIP_COTURN}" = "true" ]; then
+  echo "[deploy] Skipping coturn (TURN server hosted elsewhere)"
+else
 echo "[deploy] Installing and configuring coturn TURN server"
 ssh "${SSH_OPTS[@]}" "${REMOTE}" "if ! command -v turnserver >/dev/null 2>&1; then apt-get install -y -qq coturn 2>/dev/null; fi; SERVER_IP=\$(ip -4 addr show eth0 | grep -oP '(?<=inet )[\d.]+' | head -1); if [ ! -f /etc/turnserver.conf ] || ! grep -q 'wilddolphin.us' /etc/turnserver.conf 2>/dev/null; then echo 'Configuring coturn...'; if [ -f '${DEPLOY_PATH}/cert.pem' ]; then cp '${DEPLOY_PATH}/cert.pem' /etc/turn_cert.pem; cp '${DEPLOY_PATH}/key.pem' /etc/turn_key.pem; chown turnserver:turnserver /etc/turn_cert.pem /etc/turn_key.pem 2>/dev/null || true; chmod 600 /etc/turn_key.pem; fi; cat > /etc/turnserver.conf <<TURNEOF
 listening-port=3478
@@ -105,6 +109,7 @@ syslog
 no-cli
 TURNEOF
 systemctl enable coturn && systemctl restart coturn; echo 'coturn configured'; else echo 'coturn already configured'; systemctl is-active coturn || systemctl restart coturn; fi"
+fi
 
 WHILLATS_BRANCH="${WHILLATS_BRANCH:-talkingface}"
 WHILLATS_DIR="/opt/whillats"
