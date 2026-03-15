@@ -136,16 +136,21 @@ fi
 echo "[build] creating stub .gni files for third_party deps not cloned via gclient"
 mkdir -p third_party/libsrtp third_party/libaom third_party/protobuf third_party/grpc third_party/jni_zero
 
+if [ ! -f "third_party/libsrtp/BUILD.gn" ]; then
+  echo "[build] cloning libsrtp"
+  mkdir -p third_party
+  git clone --depth=1 https://chromium.googlesource.com/chromium/deps/libsrtp.git third_party/libsrtp
+fi
+
 for stub in \
-  "third_party/libsrtp/options.gni" \
   "third_party/libaom/options.gni" \
   "third_party/protobuf/proto_library.gni" \
   "third_party/grpc/grpc_library.gni" \
   "third_party/jni_zero/jni_zero.gni"; do
   if [ ! -f "${stub}" ]; then
-    echo "[build] creating empty stub: ${stub}"
+    echo "[build] creating stub: ${stub}"
     mkdir -p "$(dirname "${stub}")"
-    echo "# CI stub" > "${stub}"
+    echo "# CI stub — feature disabled via GN args" > "${stub}"
   fi
 done
 
