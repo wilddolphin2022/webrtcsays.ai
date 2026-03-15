@@ -23,9 +23,6 @@
 #include "direct.h"
 #include "option.h"
 #include "client.h"
-#ifdef WEBRTC_SPEECH_DEVICES
-#include "modules/audio_device/speech/speech_audio_device_factory.h"
-#endif
 //#include "room.h"
 
 static volatile bool g_shutdown = false;
@@ -85,20 +82,6 @@ int main(int argc, char* argv[]) {
 
   //DirectSetLoggingLevel(AS_INFO);
   DirectApplication::rtcInitialize();
-
-#ifdef WEBRTC_SPEECH_DEVICES
-  if (opts.whisper && opts.llama) {
-    webrtc::SpeechAudioDeviceFactory::SetLlamaEnabled(true);
-    webrtc::SpeechAudioDeviceFactory::SetLlamaModelFilename(opts.llama_model);
-    webrtc::SpeechAudioDeviceFactory::SetLlavaMMProjFilename(opts.llava_mmproj);
-    if (opts.whisper_threads > 0) webrtc::SpeechAudioDeviceFactory::SetWhisperThreads(opts.whisper_threads);
-    if (opts.llama_threads > 0) webrtc::SpeechAudioDeviceFactory::SetLlamaThreads(opts.llama_threads);
-    if (opts.tts_threads > 0) webrtc::SpeechAudioDeviceFactory::SetTTSThreads(opts.tts_threads);
-    fprintf(stderr, "Preloading Llama model: %s\n", opts.llama_model.c_str());
-    static WhillatsSetResponseCallback preloadCb([](bool, const char*, void*){}, nullptr);
-    webrtc::SpeechAudioDeviceFactory::PreloadLlama(preloadCb);
-  }
-#endif
 
   // Parse server address and room from options
   std::string room_name = opts.room_name.empty() ? "room101" : opts.room_name;  // Use provided room or default
