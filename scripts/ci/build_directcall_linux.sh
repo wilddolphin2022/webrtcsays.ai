@@ -167,25 +167,19 @@ if [ -f ".gn" ]; then
   cp ".gn" ".gn.ci.bak"
   python3 - <<'PY'
 from pathlib import Path
-import re
 
 p = Path(".gn")
-text = p.read_text()
-lines = text.splitlines()
+lines = p.read_text().splitlines()
 
-# Remove export_compile_commands (not supported in standalone builds)
-lines = [ln for ln in lines if not ln.strip().startswith("export_compile_commands")]
-
-# Replace any reference to exec_script_whitelist with exec_script_allowlist
-lines = [ln.replace("exec_script_whitelist", "exec_script_allowlist") for ln in lines]
-
-# Ensure exec_script_allowlist is defined
-if not any("exec_script_allowlist" in ln for ln in lines):
-    lines.append("exec_script_allowlist = build_dotfile_settings.exec_script_allowlist")
+# Remove lines that restrict exec_script or export_compile_commands
+lines = [ln for ln in lines
+         if not ln.strip().startswith("export_compile_commands")
+         and "exec_script_whitelist" not in ln
+         and "exec_script_allowlist" not in ln]
 
 p.write_text("\n".join(lines) + "\n")
 PY
-  echo "[build] patched .gn for CI gn compatibility"
+  echo "[build] patched .gn: removed exec_script restrictions for CI"
 fi
 
 if [ -f "BUILD.gn" ] && rg '^\s*"sdk",\s*$' "BUILD.gn" >/dev/null 2>&1; then
