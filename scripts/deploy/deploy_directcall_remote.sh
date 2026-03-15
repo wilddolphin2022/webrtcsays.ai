@@ -169,8 +169,10 @@ encodes outgoing messages and decodes incoming ones accordingly.
 Protocol order: HELLO -> INVITE -> OFFER -> ICE -> ...
 \"\"\"
 import json
+import os
 import socket
 import struct
+import sys
 import time
 import traceback
 import urllib.parse
@@ -386,6 +388,17 @@ def main():
 
 
 if __name__ == '__main__':
+    import fcntl, atexit
+    lock_path = '/tmp/bridge_signal_tcp.lock'
+    lock_fd = open(lock_path, 'w')
+    try:
+        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        lock_fd.write(str(os.getpid()))
+        lock_fd.flush()
+    except IOError:
+        print('[bridge] Another instance is already running. Exiting.', flush=True)
+        sys.exit(1)
+    atexit.register(lambda: os.unlink(lock_path))
     main()
 PY
 chmod +x '${DEPLOY_PATH}/bridge_signal_tcp.py'"
