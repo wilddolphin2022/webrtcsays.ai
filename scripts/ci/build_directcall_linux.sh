@@ -147,15 +147,14 @@ else
   echo "[build] skipping clang updater; tools/clang/scripts/update.py not present"
 fi
 
-if [ ! -f "build/dotfile_settings.gni" ]; then
-  echo "[build] creating fallback build/dotfile_settings.gni"
-  mkdir -p build
-  cat > build/dotfile_settings.gni <<'EOF'
+echo "[build] ensuring build/dotfile_settings.gni has both allowlist and whitelist"
+mkdir -p build
+cat > build/dotfile_settings.gni <<'EOF'
 build_dotfile_settings = {
   exec_script_whitelist = []
+  exec_script_allowlist = []
 }
 EOF
-fi
 
 if [ -d ".git" ]; then
   git checkout -- .gn || true
@@ -168,11 +167,22 @@ if [ -f ".gn" ]; then
   cp ".gn" ".gn.ci.bak"
   python3 - <<'PY'
 from pathlib import Path
+import re
+
 p = Path(".gn")
-lines = p.read_text().splitlines()
+text = p.read_text()
+lines = text.splitlines()
+
+# Remove export_compile_commands (not supported in standalone builds)
 lines = [ln for ln in lines if not ln.strip().startswith("export_compile_commands")]
+
+# Replace any reference to exec_script_whitelist with exec_script_allowlist
+lines = [ln.replace("exec_script_whitelist", "exec_script_allowlist") for ln in lines]
+
+# Ensure exec_script_allowlist is defined
 if not any("exec_script_allowlist" in ln for ln in lines):
-  lines.append("exec_script_allowlist = exec_script_whitelist")
+    lines.append("exec_script_allowlist = build_dotfile_settings.exec_script_allowlist")
+
 p.write_text("\n".join(lines) + "\n")
 PY
   echo "[build] patched .gn for CI gn compatibility"
