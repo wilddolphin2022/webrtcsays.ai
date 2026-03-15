@@ -6,7 +6,7 @@ on:
       git_ref:
         description: "Branch/tag/SHA to build"
         required: false
-        default: "talkingface"
+        default: "takingface"
       build_type:
         description: "Build type"
         required: false

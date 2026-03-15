@@ -13,7 +13,7 @@
 
 ### Phase 1: CI Build (GitHub Actions ubuntu-22.04, ~20 min)
 
-1. Checkout `talkingface` branch with submodules (includes whillats)
+1. Checkout `takingface` branch with submodules (includes whillats)
 2. `gclient sync` — fetch WebRTC third_party dependencies
 3. Build whillats library (cmake, CPU-only on CI)
 4. Build WebRTC + directcall (gn gen + ninja, ~3830 files)
@@ -113,8 +113,8 @@ between components (e.g. whisper=4, llama=6, tts=2 for 8 cores).
 
 ```bash
 # CPU server
-gh workflow run deploy-directcall.yml --ref talkingface -f git_ref=talkingface
+gh workflow run deploy-directcall.yml --ref takingface -f git_ref=takingface
 
 # GPU server
-gh workflow run deploy-directcall-gpu.yml --ref talkingface -f git_ref=talkingface
+gh workflow run deploy-directcall-gpu.yml --ref takingface -f git_ref=takingface
 ```
