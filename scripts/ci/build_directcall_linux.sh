@@ -375,12 +375,23 @@ if [ -f "${OUT_DIR}/libdirect.so" ]; then
   cp "${OUT_DIR}/libdirect.so" "${DIST_DIR}/lib/" || true
 fi
 
-if [ -d "${WHILLATS_BUILD_DIR}/lib/Release" ]; then
-  cp "${WHILLATS_BUILD_DIR}/lib/Release/"*.so* "${DIST_DIR}/lib/" 2>/dev/null || true
-fi
-if [ -d "${WHILLATS_BUILD_DIR}/bin/Release" ]; then
-  cp "${WHILLATS_BUILD_DIR}/bin/Release/"*.so* "${DIST_DIR}/lib/" 2>/dev/null || true
-fi
+echo "[build] collecting shared libraries from whillats build"
+find "${WHILLATS_BUILD_DIR}" -name '*.so*' -type f 2>/dev/null | while read -r sofile; do
+  cp -v "${sofile}" "${DIST_DIR}/lib/" 2>/dev/null || true
+done
+find "${WHILLATS_BUILD_DIR}" -name '*.so*' -type l 2>/dev/null | while read -r solink; do
+  cp -av "${solink}" "${DIST_DIR}/lib/" 2>/dev/null || true
+done
+
+echo "[build] collecting shared libraries from WebRTC out dir"
+for lib in libllama libggml libwhisper libespeak; do
+  find "${OUT_DIR}" -name "${lib}*.so*" 2>/dev/null | while read -r f; do
+    cp -av "${f}" "${DIST_DIR}/lib/" 2>/dev/null || true
+  done
+done
+
+echo "[build] dist/lib contents:"
+ls -la "${DIST_DIR}/lib/"
 
 cat > "${DIST_DIR}/run-directcall.sh" <<'EOF'
 #!/usr/bin/env bash
