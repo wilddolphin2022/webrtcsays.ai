@@ -53,6 +53,13 @@ jobs:
           install -m 700 -d ~/.ssh
           printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_wd2025
           chmod 600 ~/.ssh/id_wd2025
+          cat > ~/.ssh/config <<'SSHCFG'
+          Host *
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
+            LogLevel ERROR
+          SSHCFG
+          chmod 600 ~/.ssh/config
 
       - name: Prepare runtime config
         run: |
