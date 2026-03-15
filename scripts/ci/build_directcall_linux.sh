@@ -44,14 +44,33 @@ if [ -f ".gitmodules" ]; then
   git submodule update --init --recursive modules/third_party/whillats
 fi
 
+echo "[build] running gclient sync to fetch WebRTC third_party deps"
+GCLIENT_CFG="${ROOT_DIR}/.gclient"
+if [ ! -f "${GCLIENT_CFG}" ]; then
+  cat > "${GCLIENT_CFG}" <<GCEOF
+solutions = [{
+    "name": "src",
+    "url": "file://${ROOT_DIR}",
+    "deps_file": "DEPS",
+    "managed": False,
+    "custom_deps": {},
+}]
+target_os = ["linux"]
+GCEOF
+fi
+
+cd "$(dirname "${ROOT_DIR}")"
+gclient sync --no-history --shallow --nohooks --force -D 2>&1 || true
+cd "${ROOT_DIR}"
+
 if [ ! -f "build/config/BUILDCONFIG.gn" ]; then
-  echo "[build] build/config/BUILDCONFIG.gn missing; cloning chromium build repo"
+  echo "[build] build/config/BUILDCONFIG.gn still missing after gclient; cloning chromium build repo"
   rm -rf build
   git clone --depth=1 https://chromium.googlesource.com/chromium/src/build.git build
 fi
 
 if [ ! -f "testing/test.gni" ]; then
-  echo "[build] testing/test.gni missing; cloning chromium testing repo"
+  echo "[build] testing/test.gni still missing; cloning chromium testing repo"
   rm -rf testing
   git clone --depth=1 https://chromium.googlesource.com/chromium/src/testing.git testing
 fi
