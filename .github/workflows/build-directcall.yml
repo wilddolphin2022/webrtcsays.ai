@@ -1,0 +1,106 @@
+name: Build DirectCall Only
+
+on:
+  workflow_dispatch:
+    inputs:
+      git_ref:
+        description: "Branch/tag/SHA to build"
+        required: false
+        default: "takingface"
+      build_type:
+        description: "Build type"
+        required: false
+        default: "release"
+        type: choice
+        options:
+          - release
+          - debug
+      deploy:
+        description: "Deploy to remote host after build"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 180
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.git_ref }}
+          submodules: recursive
+
+      - name: Build directcall
+        run: |
+          chmod +x scripts/ci/build_directcall_linux.sh
+          scripts/ci/build_directcall_linux.sh
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: directcall-linux-${{ inputs.build_type }}
+          path: dist/directcall-linux.tar.gz
+          retention-days: 30
+
+  deploy:
+    needs: build
+    if: inputs.deploy == 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout (for deploy scripts)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.git_ref }}
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: directcall-linux-${{ inputs.build_type }}
+          path: dist/
+
+      - name: Prepare SSH key
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_wd2025
+          chmod 600 ~/.ssh/id_wd2025
+          cat > ~/.ssh/config <<'SSHCFG'
+          Host *
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
+            LogLevel ERROR
+          SSHCFG
+          chmod 600 ~/.ssh/config
+
+      - name: Prepare runtime config
+        run: |
+          mkdir -p dist
+          if [ -n "${{ secrets.DIRECTCALL_CONFIG_JSON }}" ]; then
+            printf '%s\n' "${{ secrets.DIRECTCALL_CONFIG_JSON }}" > dist/directcall-config.json
+          elif [ -f "scripts/deploy/directcall.config.example.json" ]; then
+            cp scripts/deploy/directcall.config.example.json dist/directcall-config.json
+          else
+            echo "No config. Set DIRECTCALL_CONFIG_JSON secret or commit scripts/deploy/directcall.config.example.json"
+            exit 1
+          fi
+
+      - name: Deploy to remote host
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          DEPLOY_PATH: /opt/directcall
+          SERVICE_NAME: directcall
+          SSH_KEY_PATH: ~/.ssh/id_wd2025
+          ENABLE_SIGNAL_BRIDGE: "true"
+          BRIDGE_ROOM: testroom
+          SIGNAL_BASE_URL: https://www.wilddolphin.us/signal.php
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          chmod +x scripts/deploy/deploy_directcall_remote.sh
+          scripts/deploy/deploy_directcall_remote.sh dist/directcall-linux.tar.gz dist/directcall-config.json
