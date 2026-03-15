@@ -1,0 +1,27 @@
+{
+  "src": {
+    "src/third_party/rust-toolchain": [
+      "Linux_x64/rust-toolchain-009e73825af0e59ad4fc603562e038b3dbd6593a-2-llvmorg-20-init-3847-g69c43468.tar.xz",
+      "Mac/rust-toolchain-009e73825af0e59ad4fc603562e038b3dbd6593a-2-llvmorg-20-init-3847-g69c43468.tar.xz",
+      "Mac_arm64/rust-toolchain-009e73825af0e59ad4fc603562e038b3dbd6593a-2-llvmorg-20-init-3847-g69c43468.tar.xz",
+      "Win/rust-toolchain-009e73825af0e59ad4fc603562e038b3dbd6593a-2-llvmorg-20-init-3847-g69c43468.tar.xz"
+    ],
+    "src/third_party/test_fonts/test_fonts": [
+      "f26f29c9d3bfae588207bbc9762de8d142e58935c62a86f67332819b15203b35"
+    ]
+  },
+  "src/buildtools": {
+    "src/buildtools/win-format": [
+      "49458d4c1e884a38308f8dc6a2c7eb55fc478755"
+    ],
+    "src/buildtools/mac-format": [
+      "0b4bd257a1f4cd27d27d6919b0f9e52ecdfa8f1e"
+    ],
+    "src/buildtools/mac_arm64-format": [
+      "96c34e77259c4cc1fc7bdf067fc058bfd341ab85"
+    ],
+    "src/buildtools/linux64-format": [
+      "b42097ca924d1f1736a5a7806068fed9d7345eb4"
+    ]
+  }
+}

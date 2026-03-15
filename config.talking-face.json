@@ -1,0 +1,30 @@
+{
+  "mode": "callee",
+  "address": "3.93.50.189:3456",
+  "user_name": "Slim",
+  "room_name": "room101",
+  "encryption": true,
+  "whisper": true,
+  "llama": true,
+  "video": true,
+  "bonjour": false,
+  "language": "en",
+  "whisper_model": "${HOME}/Public/models/ggml-small.bin",
+  "llama_model": "${HOME}/Public/models/Qwen3.5-9B-Q3_K_M.gguf",
+  "webrtc_cert_path": "src/cert.pem",
+  "webrtc_key_path": "src/key.pem",
+  "webrtc_speech_initial_playout_wav": "",
+  "turns": [
+    [
+      "turn:18.207.164.106:5349?transport=udp",
+      "webrtcsays.ai,",
+      "wilddolphin"
+    ]
+  ],
+  "talking_face": "/Users/ykiryanov/Personal/Wilddolphin/hosting/RobotPhoneLogo.jpeg",
+  "whispers": {
+    "en": [
+      "Hello, how are you?"
+    ]
+  }
+}
