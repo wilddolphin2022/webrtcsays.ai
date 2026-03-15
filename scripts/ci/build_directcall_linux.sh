@@ -142,8 +142,18 @@ if [ ! -f "third_party/libsrtp/BUILD.gn" ]; then
   git clone --depth=1 https://chromium.googlesource.com/chromium/deps/libsrtp.git third_party/libsrtp
 fi
 
+if [ ! -f "third_party/libaom/options.gni" ]; then
+  echo "[build] creating libaom options stub"
+  mkdir -p third_party/libaom
+  cat > third_party/libaom/options.gni <<'GNI'
+declare_args() {
+  enable_libaom = false
+  enable_libaom_decoder = false
+}
+GNI
+fi
+
 for stub in \
-  "third_party/libaom/options.gni" \
   "third_party/protobuf/proto_library.gni" \
   "third_party/grpc/grpc_library.gni" \
   "third_party/jni_zero/jni_zero.gni"; do
