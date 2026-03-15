@@ -67,6 +67,12 @@ class SpeechAudioDeviceFactory {
   static WhillatsLlama* llama() { return _llamaDevice.get(); }
 
   static void SetTalkingFaceImage(const std::string& path);
+  static void SetWhisperThreads(int n) { _whisperThreads = n; }
+  static void SetLlamaThreads(int n) { _llamaThreads = n; }
+  static void SetTTSThreads(int n) { _ttsThreads = n; }
+  static int GetWhisperThreads() { return _whisperThreads; }
+  static int GetLlamaThreads() { return _llamaThreads; }
+  static int GetTTSThreads() { return _ttsThreads; }
   static void SetTalkingFaceImageFromMemory(const uint8_t* data, int size, int dummy1, int dummy2);
   static TalkingFace* talkingFace() { return _talkingFace.get(); }
 
@@ -100,6 +106,9 @@ class SpeechAudioDeviceFactory {
   
   static bool _whisperEnabled;
   static bool _llamaEnabled;
+  static int _whisperThreads;
+  static int _llamaThreads;
+  static int _ttsThreads;
 
   // This is a whisper device, to send to whisper
   static std::unique_ptr<WhillatsTranscriber> _whisperDevice;

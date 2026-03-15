@@ -575,6 +575,9 @@ bool DirectApplication::CreatePeerConnection() {
     webrtc::SpeechAudioDeviceFactory::SetLlamaEnabled(true);
     webrtc::SpeechAudioDeviceFactory::SetLlamaModelFilename(opts_.llama_model);
     webrtc::SpeechAudioDeviceFactory::SetLlavaMMProjFilename(opts_.llava_mmproj);
+    if (opts_.whisper_threads > 0) webrtc::SpeechAudioDeviceFactory::SetWhisperThreads(opts_.whisper_threads);
+    if (opts_.llama_threads > 0) webrtc::SpeechAudioDeviceFactory::SetLlamaThreads(opts_.llama_threads);
+    if (opts_.tts_threads > 0) webrtc::SpeechAudioDeviceFactory::SetTTSThreads(opts_.tts_threads);
 #if LLAMA_NOTIFICATION_ENABLED
     llama_ = webrtc::SpeechAudioDeviceFactory::CreateWhillatsLlama(llamaCallback_);
 #endif

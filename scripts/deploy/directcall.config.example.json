@@ -27,6 +27,9 @@
     ]
   ],
   "talking_face": "/opt/directcall/RobotPhoneLogo.jpeg",
+  "whisper_threads": 4,
+  "llama_threads": 6,
+  "tts_threads": 2,
   "whispers": {
     "en": [
       "Hello, how are you?"

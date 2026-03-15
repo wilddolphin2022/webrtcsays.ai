@@ -41,6 +41,9 @@ std::string SpeechAudioDeviceFactory::_yuvFilename;
 YUVData SpeechAudioDeviceFactory::_yuvData;
 bool SpeechAudioDeviceFactory::_whisperEnabled = false;
 bool SpeechAudioDeviceFactory::_llamaEnabled = false;
+int SpeechAudioDeviceFactory::_whisperThreads = 0;
+int SpeechAudioDeviceFactory::_llamaThreads = 0;
+int SpeechAudioDeviceFactory::_ttsThreads = 0;
 
 // Static queue and mutex for enqueued TTS text tasks
 std::unique_ptr<TaskQueueBase, TaskQueueDeleter> SpeechAudioDeviceFactory::_textToSpeakQueue;

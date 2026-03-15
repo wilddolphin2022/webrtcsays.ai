@@ -105,6 +105,9 @@ struct Options {
     std::string room_name{}; // Room name to join
     std::string language{}; // Language to use for speech
     std::vector<std::string> whispers{}; // Whispers to use for speech
+    int whisper_threads = 0; // 0 = auto (hardware_concurrency)
+    int llama_threads = 0;   // 0 = auto (hardware_concurrency)
+    int tts_threads = 0;     // 0 = auto (hardware_concurrency)
 };
 
 // Function to parse command line string to above options

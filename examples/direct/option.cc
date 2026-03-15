@@ -372,6 +372,19 @@ Options parseOptions(const std::vector<std::string>& args) {
                 RTC_LOG(LS_WARNING) << "`whispers` is neither array nor object – ignored";
             }
         }
+        // Thread counts (0 = auto)
+        if (config_json.isMember("whisper_threads") && config_json["whisper_threads"].isInt()) {
+             opts.whisper_threads = config_json["whisper_threads"].asInt();
+             RTC_LOG(LS_INFO) << "Config whisper_threads: " << opts.whisper_threads;
+        }
+        if (config_json.isMember("llama_threads") && config_json["llama_threads"].isInt()) {
+             opts.llama_threads = config_json["llama_threads"].asInt();
+             RTC_LOG(LS_INFO) << "Config llama_threads: " << opts.llama_threads;
+        }
+        if (config_json.isMember("tts_threads") && config_json["tts_threads"].isInt()) {
+             opts.tts_threads = config_json["tts_threads"].asInt();
+             RTC_LOG(LS_INFO) << "Config tts_threads: " << opts.tts_threads;
+        }
         // Booleans
         if (config_json.isMember("encryption") && config_json["encryption"].isBool()) {
              RTC_LOG(LS_INFO) << "Config encryption: " << config_json["encryption"].asBool(); // Log value
