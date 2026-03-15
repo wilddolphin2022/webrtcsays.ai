@@ -45,8 +45,10 @@ if [ -f ".gitmodules" ]; then
 fi
 
 echo "[build] running gclient sync to fetch WebRTC third_party deps"
-GCLIENT_CFG="${ROOT_DIR}/.gclient"
+GCLIENT_ROOT="$(dirname "${ROOT_DIR}")"
+GCLIENT_CFG="${GCLIENT_ROOT}/.gclient"
 if [ ! -f "${GCLIENT_CFG}" ]; then
+  ln -sfn "$(basename "${ROOT_DIR}")" "${GCLIENT_ROOT}/src"
   cat > "${GCLIENT_CFG}" <<GCEOF
 solutions = [{
     "name": "src",
@@ -59,7 +61,7 @@ target_os = ["linux"]
 GCEOF
 fi
 
-cd "$(dirname "${ROOT_DIR}")"
+cd "${GCLIENT_ROOT}"
 gclient sync --no-history --shallow --nohooks --force -D 2>&1 || true
 cd "${ROOT_DIR}"
 
