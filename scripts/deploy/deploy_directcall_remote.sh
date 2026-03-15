@@ -346,6 +346,11 @@ def handle_browser_messages(msgs: List[dict]):
 
 def main():
     log('bridge started')
+    try:
+        signal_get({'action': 'reset', 'role': 'callee', 'room': SIGNAL_ROOM})
+        log(f'reset room {SIGNAL_ROOM}')
+    except Exception as e:
+        log(f'reset failed: {e!r}')
 
     while True:
         try:
