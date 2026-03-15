@@ -1063,7 +1063,7 @@ if (!build_with_chromium) {
       ]
 
       if (rtc_use_speech_audio_devices) {
-        defines += [ "WEBRTC_SPEECH_DEVICES" ]
+        defines += [ "WEBRTC_SPEECH_DEVICES", "LLAMA_NOTIFICATION_ENABLED" ]
       }
 
       cflags = []
@@ -1187,7 +1187,7 @@ if (!build_with_chromium) {
     # If WEBRTC_SPEECH_DEVICES differs between the executable and shared lib,
     # class layouts diverge and trigger heap corruption at runtime.
     if (rtc_use_speech_audio_devices) {
-      defines += [ "WEBRTC_SPEECH_DEVICES" ]
+      defines += [ "WEBRTC_SPEECH_DEVICES", "LLAMA_NOTIFICATION_ENABLED" ]
     }
 
     # Only set the minimum macOS deployment version for macOS builds.
