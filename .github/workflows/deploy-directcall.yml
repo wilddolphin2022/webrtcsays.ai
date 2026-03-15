@@ -50,9 +50,9 @@ jobs:
 
       - name: Prepare SSH key
         run: |
-          install -m 700 -d "$HOME/.ssh"
-          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > "$HOME/.ssh/id_wd2025"
-          chmod 600 "$HOME/.ssh/id_wd2025"
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_wd2025
+          chmod 600 ~/.ssh/id_wd2025
 
       - name: Prepare runtime config
         run: |
@@ -73,7 +73,7 @@ jobs:
           DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
           DEPLOY_PATH: ${{ inputs.deploy_path }}
           SERVICE_NAME: ${{ inputs.service_name }}
-          SSH_KEY_PATH: /home/runner/.ssh/id_wd2025
+          SSH_KEY_PATH: ~/.ssh/id_wd2025
           ENABLE_SIGNAL_BRIDGE: ${{ inputs.enable_signal_bridge }}
           BRIDGE_ROOM: ${{ inputs.bridge_room }}
           SIGNAL_BASE_URL: ${{ inputs.signal_base_url }}
