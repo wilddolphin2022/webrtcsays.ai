@@ -333,7 +333,7 @@ if ! "${GN_BIN}" --version >/dev/null 2>&1; then
   GN_BIN="/tmp/gn-linux-amd64/gn"
 fi
 
-"${GN_BIN}" gen "${OUT_DIR}" --args='target_os="linux" is_debug=false is_clang=false use_sysroot=false treat_warnings_as_errors=false rtc_include_opus=true rtc_include_tests=true rtc_build_examples=true rtc_build_sdk=false rtc_enable_symbol_export=true rtc_use_speech_audio_devices=true use_custom_libcxx=false enable_js_protobuf=false rtc_enable_protobuf=false enable_libaom=false'
+"${GN_BIN}" gen "${OUT_DIR}" --args='target_os="linux" is_debug=false is_clang=false use_sysroot=false treat_warnings_as_errors=false rtc_include_opus=true rtc_include_tests=false rtc_build_examples=false rtc_build_sdk=false rtc_enable_symbol_export=true rtc_use_speech_audio_devices=true use_custom_libcxx=false enable_js_protobuf=false rtc_enable_protobuf=false enable_libaom=false'
 if [ -x "/usr/bin/ninja" ]; then
   NINJA_BIN="/usr/bin/ninja"
 elif command -v ninja-build >/dev/null 2>&1; then
