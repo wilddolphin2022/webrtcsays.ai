@@ -70,14 +70,18 @@ void llamaCallback(bool success, const char* response, void* user_data) {
       }
       
       if (app->remote_agent() == "text-only") {
-        // Remote expects text notifications; send LLAMA message
         if (app->IsConnected()) {
           std::string message;
           message.append("LLAMA:[").append(language).append("]").append(response);
           app->SendMessage(message);
         }
-      } else if(app->remote_agent() == "audio") { // "audio" or any other value: play TTS locally so audio is transmitted via WebRTC
+      } else if(app->remote_agent() == "audio") {
         webrtc::SpeechAudioDeviceFactory::SpeakText(response, language);
+        if (app->IsConnected()) {
+          std::string message;
+          message.append("LLAMA:[").append(language).append("]").append(response);
+          app->SendMessage(message);
+        }
       } else {
         RTC_LOG(LS_WARNING) << "Llama notification arrived but peer is no longer connected. Dropping message: [" << language << "]" << response;
       }
