@@ -129,7 +129,7 @@ ssh "${SSH_OPTS[@]}" "${REMOTE}" "cat > '${DEPLOY_PATH}/run-directcall.sh' <<'RU
 #!/usr/bin/env bash
 set -euo pipefail
 SELF_DIR=\"\$(cd \"\$(dirname \"\${BASH_SOURCE[0]}\")\" && pwd)\"
-export LD_LIBRARY_PATH=\"\${SELF_DIR}/lib:\${LD_LIBRARY_PATH:-}\"
+export LD_LIBRARY_PATH=\"\${SELF_DIR}/lib:/usr/local/cuda/lib64:\${LD_LIBRARY_PATH:-}\"
 exec stdbuf -oL \"\${SELF_DIR}/directcall\" \"\$@\"
 RUNEOF
 chmod +x '${DEPLOY_PATH}/run-directcall.sh'"
