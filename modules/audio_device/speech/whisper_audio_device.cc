@@ -21,7 +21,6 @@
 #include <cctype>     // for std::isspace
 #include <mutex>      // for std::mutex, lock_guard
 #include <queue>      // for std::queue
-#include <chrono>     // for throttling duplicate partial transcripts
 
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
@@ -71,65 +70,9 @@ void whisperResponseCallback(bool success, const char* response, void* user_data
   // Handle response here
   RTC_LOG(LS_INFO) << "Whisper response via callback: " << response;
   if(success) {
-    static std::mutex dedupe_mutex;
-    static std::string last_norm;
-    static auto last_sent = std::chrono::steady_clock::time_point{};
-
-    std::string text(response ? response : "");
-    // Normalize and gate short/duplicate partials to reduce over-chatty replies.
-    auto normalize = [](std::string s) {
-      for (char& ch : s) {
-        ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
-      }
-      std::string out;
-      out.reserve(s.size());
-      bool prev_space = false;
-      for (char ch : s) {
-        if (std::isspace(static_cast<unsigned char>(ch))) {
-          if (!prev_space) out.push_back(' ');
-          prev_space = true;
-        } else {
-          out.push_back(ch);
-          prev_space = false;
-        }
-      }
-      auto is_not_space = [](unsigned char ch) { return !std::isspace(ch); };
-      out.erase(out.begin(), std::find_if(out.begin(), out.end(), is_not_space));
-      out.erase(std::find_if(out.rbegin(), out.rend(), is_not_space).base(), out.end());
-      return out;
-    };
-
-    std::string norm = normalize(text);
-    if (norm.size() < 4) {
-      return;
-    }
-
-    bool should_send = true;
-    {
-      std::lock_guard<std::mutex> lock(dedupe_mutex);
-      auto now = std::chrono::steady_clock::now();
-      if (last_sent.time_since_epoch().count() != 0) {
-        auto dt_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_sent).count();
-        if (dt_ms < 1200) {
-          should_send = false;
-        } else if (norm == last_norm && dt_ms < 5000) {
-          should_send = false;
-        }
-      }
-      if (should_send) {
-        last_norm = norm;
-        last_sent = now;
-      }
-    }
-
-    if (!should_send) {
-      RTC_LOG(LS_INFO) << "Skipping duplicate/noisy Whisper partial: " << text;
-      return;
-    }
-
     if(audio_device->_llama_enabled)
       audio_device->askLlama(std::string(response));
-    else
+    else  
       audio_device->speakText(std::string(response));
   }
 }
@@ -141,93 +84,13 @@ void languageResponseCallback(bool success, const char* language, void* user_dat
   RTC_LOG(LS_INFO) << "Language response via callback: " << language;
 }
 
-static std::string sanitizeForSpeech(std::string text) {
-  const char* tokens[] = {
-      "<|im_end|>", "<|endoftext|>", "<|eot_id|>", "</s>",
-      "<|im_start|>assistant", "<|im_start|>user", "<|im_start|>"
-  };
-  for (const char* token : tokens) {
-    size_t pos = std::string::npos;
-    while ((pos = text.find(token)) != std::string::npos) {
-      text.erase(pos, std::strlen(token));
-    }
-  }
-  return text;
-}
-
-static std::string shortenForSpeech(std::string text) {
-  // Keep spoken output concise: up to ~140 chars, ending at a sentence boundary if possible.
-  constexpr size_t kMaxChars = 140;
-  if (text.size() > kMaxChars) {
-    std::string short_text = text.substr(0, kMaxChars);
-    size_t cut = short_text.find_last_of(".!?");
-    if (cut != std::string::npos && cut >= 16) {
-      short_text = short_text.substr(0, cut + 1);
-    } else {
-      cut = short_text.find_last_of(" ,;");
-      if (cut != std::string::npos && cut >= 16) {
-        short_text = short_text.substr(0, cut) + "...";
-      } else {
-        short_text += "...";
-      }
-    }
-    text = short_text;
-  }
-  auto is_not_space = [](unsigned char ch) { return !std::isspace(ch); };
-  text.erase(text.begin(), std::find_if(text.begin(), text.end(), is_not_space));
-  text.erase(std::find_if(text.rbegin(), text.rend(), is_not_space).base(), text.end());
-  return text;
-}
-
-static void trimInPlace(std::string& s) {
-  auto is_not_space = [](unsigned char ch) { return !std::isspace(ch); };
-  s.erase(s.begin(), std::find_if(s.begin(), s.end(), is_not_space));
-  s.erase(std::find_if(s.rbegin(), s.rend(), is_not_space).base(), s.end());
-}
-
 void llamaResponseCallback(bool success, const char* response, void* user_data) {
   WhisperAudioDevice* audio_device = static_cast<WhisperAudioDevice*>(user_data);
   if (!audio_device) return;
   // Handle response here
   RTC_LOG(LS_INFO) << "Llama response via callback: " << response;
   if(success) {
-    std::string text(response ? response : "");
-
-    // Extract only the assistant's turn if Llama hallucinates prompt history
-    size_t assistant_pos = text.rfind("<|im_start|>assistant");
-    if (assistant_pos != std::string::npos) {
-        text = text.substr(assistant_pos + std::strlen("<|im_start|>assistant"));
-    }
-    size_t next_user = text.find("<|im_start|>user");
-    if (next_user != std::string::npos) {
-        text = text.substr(0, next_user);
-    }
-
-    size_t think_start = text.find("<think>");
-    size_t think_end = text.find("</think>");
-    if (audio_device->llamaInThinkBlock()) {
-      if (think_end == std::string::npos) {
-        return;
-      }
-      text = text.substr(think_end + std::strlen("</think>"));
-      audio_device->setLlamaInThinkBlock(false);
-    }
-    if (think_start != std::string::npos) {
-      if (think_end != std::string::npos && think_end > think_start) {
-        text.erase(think_start, think_end + std::strlen("</think>") - think_start);
-      } else {
-        text.erase(think_start);
-        audio_device->setLlamaInThinkBlock(true);
-      }
-    }
-
-    text = sanitizeForSpeech(text);
-    text = shortenForSpeech(text);
-    trimInPlace(text);
-    if (text.empty()) {
-      return;
-    }
-    audio_device->speakText(text);
+    audio_device->speakText(std::string(response));
   }
 }
 
@@ -519,12 +382,6 @@ bool WhisperAudioDevice::RecThreadProcess() {
             std::copy(src, end, _recordingBuffer);
             _ttsIndex += samplesToCopy;
 
-            // Drive talking-face lips from the exact PCM chunk sent to WebRTC.
-            auto* face = SpeechAudioDeviceFactory::talkingFace();
-            if (face) {
-              face->feedAudio(reinterpret_cast<const int16_t*>(_recordingBuffer), samplesToCopy);
-            }
-
             // Fill any leftover with silence
             std::fill_n(
               _recordingBuffer + samplesToCopy * sizeof(short),
@@ -561,11 +418,6 @@ bool WhisperAudioDevice::RecThreadProcess() {
             _recordingBuffer,
             _recordingFramesIn10MS * sizeof(short),
             int8_t(0));
-
-        auto* face = SpeechAudioDeviceFactory::talkingFace();
-        if (face) {
-          face->feedAudio(reinterpret_cast<const int16_t*>(_recordingBuffer), _recordingFramesIn10MS);
-        }
 
         mutex_.Unlock();
         _ptrAudioBuffer->SetRecordedBuffer(_recordingBuffer, _recordingFramesIn10MS);

@@ -50,8 +50,6 @@ class WhisperAudioDevice : public SpeechAudioDevice {
   virtual void speakText(const std::string& text) override;
   // Send question to llama
   virtual void askLlama(const std::string& text) override;
-  bool llamaInThinkBlock() const { return _llama_in_think_block; }
-  void setLlamaInThinkBlock(bool value) { _llama_in_think_block = value; }
 
   // Device enumeration
   int16_t PlayoutDevices() override;
@@ -185,10 +183,6 @@ class WhisperAudioDevice : public SpeechAudioDevice {
 
   std::mutex audio_buffer_mutex;
   std::condition_variable buffer_cv;
-
-  // Suppress intermediate reasoning blocks like <think>...</think> from being
-  // spoken aloud while still allowing the final user-facing answer through.
-  bool _llama_in_think_block = false;
 };
 
 }  // namespace webrtc

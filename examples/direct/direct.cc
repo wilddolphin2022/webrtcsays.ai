@@ -581,7 +581,8 @@ bool DirectApplication::CreatePeerConnection() {
 #if LLAMA_NOTIFICATION_ENABLED
     llama_ = webrtc::SpeechAudioDeviceFactory::CreateWhillatsLlama(llamaCallback_);
 #endif
-    webrtc::SpeechAudioDeviceFactory::PreloadLlama(llamaCallback_);
+    // Disable eager llama preload: on this host model startup is fast enough,
+    // and deferred start avoids session-start instability.
   } 
 
   if (opts_.whisper && !opts_.whisper_model.empty()) {

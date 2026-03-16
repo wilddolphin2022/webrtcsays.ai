@@ -364,6 +364,13 @@ void DirectPeer::Start() {
 
   signaling_thread()->PostTask([this]() {
 
+    // For callee mode, acknowledge INVITE immediately so browser UI does not
+    // appear stalled while peer connection/audio stack initializes.
+    if (!is_caller()) {
+      RTC_LOG(LS_INFO) << "Waiting for offer...";
+      SendMessage(Msg::kWaiting);
+    }
+
     if(peer_connection_ == nullptr) {
         if (!CreatePeerConnection()) {
             RTC_LOG(LS_ERROR) << "Failed to create peer connection";
@@ -449,10 +456,7 @@ void DirectPeer::Start() {
 
         peer_connection_->CreateOffer(create_session_observer_.get(), offer_options);
  
-     } else {
-        RTC_LOG(LS_INFO) << "Waiting for offer...";
-        SendMessage(Msg::kWaiting);
-    }
+     }
  
   });
 
@@ -500,10 +504,16 @@ void DirectPeer::HandleMessage(rtc::AsyncPacketSocket* socket,
         } else {
           RTC_LOG(LS_ERROR) << "Peer is not a caller, cannot wait";
         }
-   } else if (!is_caller() && message.find(Msg::kOfferPrefix) == 0) {
-      const size_t prefix_len = sizeof(Msg::kOfferPrefix) - 1; // length of "OFFER:"
-      std::string sdp = message.substr(prefix_len);
-      SetRemoteDescription(sdp);
+   } else if (message.find(Msg::kOfferPrefix) == 0) {
+      fprintf(stderr, "[peer] HandleMessage OFFER (caller=%d) len=%zu\n",
+              is_caller() ? 1 : 0, message.size());
+      if (!is_caller()) {
+        const size_t prefix_len = sizeof(Msg::kOfferPrefix) - 1; // length of "OFFER:"
+        std::string sdp = message.substr(prefix_len);
+        SetRemoteDescription(sdp);
+      } else {
+        RTC_LOG(LS_WARNING) << "Received OFFER while in caller mode; ignoring";
+      }
 
    } else if (is_caller() && message.find(Msg::kAnswerPrefix) == 0) {
       const size_t prefix_len = sizeof(Msg::kAnswerPrefix) - 1; // length of "ANSWER:"
@@ -575,12 +585,20 @@ void DirectPeer::OnIceCandidate(const webrtc::IceCandidateInterface* candidate) 
 }
 
 void DirectPeer::SetRemoteDescription(const std::string& sdp) {
-    if (!peer_connection()) {
-        RTC_LOG(LS_ERROR) << "PeerConnection not initialized...";
-        return;
-    }
-  
     signaling_thread()->PostTask([this, sdp]() {
+        fprintf(stderr, "[peer] SetRemoteDescription enter (caller=%d) sdp_len=%zu\n",
+                is_caller() ? 1 : 0, sdp.size());
+        if (!peer_connection()) {
+            fprintf(stderr, "[peer] no pc yet, creating...\n");
+            RTC_LOG(LS_WARNING) << "PeerConnection not initialized yet; creating now before applying remote SDP";
+            if (!CreatePeerConnection()) {
+                fprintf(stderr, "[peer] CreatePeerConnection failed\n");
+                RTC_LOG(LS_ERROR) << "Failed to create PeerConnection for remote SDP";
+                return;
+            }
+            fprintf(stderr, "[peer] pc created\n");
+        }
+
         RTC_LOG(LS_INFO) << "Processing remote description as " 
                         << (is_caller() ? "ANSWER" : "OFFER");
         
@@ -702,13 +720,17 @@ void DirectPeer::SetRemoteDescription(const std::string& sdp) {
         }
             
         if (!session_description) {
+            fprintf(stderr, "[peer] SDP parse failed: %s\n", error.description.c_str());
             RTC_LOG(LS_ERROR) << "Failed to parse remote SDP: " << error.description;
             return;
         }
+        fprintf(stderr, "[peer] SDP parsed ok, calling SetRemoteDescription\n");
 
         auto observer = rtc::make_ref_counted<LambdaSetRemoteDescriptionObserver>(
             [this](webrtc::RTCError error) {
+                fprintf(stderr, "[peer] SetRemoteDescription callback ok=%d\n", error.ok() ? 1 : 0);
                 if (!error.ok()) {
+                    fprintf(stderr, "[peer] SetRemoteDescription failed: %s\n", error.message());
                     RTC_LOG(LS_ERROR) << "Failed to set remote description: " 
                                     << error.message();
                     return;
@@ -734,6 +756,7 @@ void DirectPeer::SetRemoteDescription(const std::string& sdp) {
                 if (!is_caller() && 
                     peer_connection()->signaling_state() == 
                         webrtc::PeerConnectionInterface::kHaveRemoteOffer) {
+                    fprintf(stderr, "[peer] creating answer as callee\n");
                     RTC_LOG(LS_INFO) << "Creating answer as callee...";
 
                     // The remote offer already contains an audio m-line.  Re-use that
@@ -852,6 +875,7 @@ void DirectPeer::SetRemoteDescription(const std::string& sdp) {
 
                     create_session_observer_ = rtc::make_ref_counted<LambdaCreateSessionDescriptionObserver>(
                         [this](std::unique_ptr<webrtc::SessionDescriptionInterface> desc) {
+                            fprintf(stderr, "[peer] CreateAnswer callback fired\n");
                             std::string sdp;
                             desc->ToString(&sdp);
                             
@@ -880,7 +904,9 @@ void DirectPeer::SetRemoteDescription(const std::string& sdp) {
 
                             set_local_description_observer_ = rtc::make_ref_counted<LambdaSetLocalDescriptionObserver>(
                                 [this, sdp](webrtc::RTCError error) {
+                                    fprintf(stderr, "[peer] SetLocalDescription callback ok=%d\n", error.ok() ? 1 : 0);
                                     if (!error.ok()) {
+                                        fprintf(stderr, "[peer] SetLocalDescription failed: %s\n", error.message());
                                         RTC_LOG(LS_ERROR) << "Failed to set local description: " 
                                                         << error.message();
                                         signaling_thread()->PostTask([this]() {
@@ -891,11 +917,13 @@ void DirectPeer::SetRemoteDescription(const std::string& sdp) {
                                     RTC_LOG(LS_INFO) << "Local description set successfully";
                                     // Both descriptions should now be set on callee side as well.
                                     DrainPendingIceCandidates();
+                                    fprintf(stderr, "[peer] sending ANSWER len=%zu\n", sdp.size());
                                     SendMessage(std::string(Msg::kAnswerPrefix) + sdp);
                             });
                             peer_connection_->SetLocalDescription(std::move(patched_desc), set_local_description_observer_);
                         });
                         
+                    fprintf(stderr, "[peer] calling CreateAnswer\n");
                     peer_connection_->CreateAnswer(
                         create_session_observer_.get(), webrtc::PeerConnectionInterface::RTCOfferAnswerOptions{});
                 }
