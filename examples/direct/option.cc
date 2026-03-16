@@ -188,6 +188,8 @@ Options parseOptions(const std::vector<std::string>& args) {
       "  --user_name=<name>                 Your user name for registration\n"
       "  --target_name=<name>               Target user name to call (caller mode)\n"
       "  --room_name=<name>                 Room name to join (default: room1)\n"
+      "  --websocket_signaling, --no-websocket_signaling  Enable/disable raw WebSocket signaling endpoint (default: enabled)\n"
+      "  --websocket_port=<port>            Raw WebSocket signaling port (default: 3457)\n"
       "  --help                             Show this help message\n\n"
       "Examples (callee called first, encryption is recommended):\n"
       "  directcall --config settings.json\n"
@@ -204,7 +206,9 @@ Options parseOptions(const std::vector<std::string>& args) {
     "--video", "--no-video", "--whisper_model", "--llama_model", "--llava_mmproj",
     "--webrtc_cert_path", "--webrtc_key_path", "--webrtc_speech_initial_playout_wav",
     "--llama_llava_yuv", "--turns", "--vpn", "--camera", "--bonjour_name",
-    "--user_name", "--target_name", "--room_name", "--help"
+    "--user_name", "--target_name", "--room_name",
+    "--websocket_signaling", "--no-websocket_signaling", "--websocket_port",
+    "--help"
   };
 
   // --- First pass: check for --config --- 
@@ -402,6 +406,14 @@ Options parseOptions(const std::vector<std::string>& args) {
              RTC_LOG(LS_INFO) << "Config video: " << config_json["video"].asBool(); // Log value
              opts.video = config_json["video"].asBool();
         }
+        if (config_json.isMember("websocket_signaling") && config_json["websocket_signaling"].isBool()) {
+             RTC_LOG(LS_INFO) << "Config websocket_signaling: " << config_json["websocket_signaling"].asBool();
+             opts.websocket_signaling = config_json["websocket_signaling"].asBool();
+        }
+        if (config_json.isMember("websocket_port") && config_json["websocket_port"].isInt()) {
+             RTC_LOG(LS_INFO) << "Config websocket_port: " << config_json["websocket_port"].asInt();
+             opts.websocket_port = config_json["websocket_port"].asInt();
+        }
 
         RTC_LOG(LS_INFO) << "Loaded options from config file: " << opts.config_path;
       } else {
@@ -483,6 +495,8 @@ Options parseOptions(const std::vector<std::string>& args) {
         opts.target_name = arg.substr(14);
     } else if (arg.find("--room_name=") == 0) {
         opts.room_name = arg.substr(12);
+    } else if (arg.find("--websocket_port=") == 0) {
+        opts.websocket_port = std::stoi(arg.substr(17));
     }
     // Handle flags
     if (arg == "--encryption") {
@@ -509,6 +523,12 @@ Options parseOptions(const std::vector<std::string>& args) {
     } else if (arg == "--no-video") { 
       RTC_LOG(LS_INFO) << "Args set video off";
       opts.video = false; 
+    } else if (arg == "--websocket_signaling") {
+      RTC_LOG(LS_INFO) << "Args set websocket_signaling on";
+      opts.websocket_signaling = true;
+    } else if (arg == "--no-websocket_signaling") {
+      RTC_LOG(LS_INFO) << "Args set websocket_signaling off";
+      opts.websocket_signaling = false;
     } else if (arg == "--bonjour") { 
       RTC_LOG(LS_INFO) << "Args set bonjour on";
       opts.video = true;

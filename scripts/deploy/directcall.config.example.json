@@ -3,6 +3,8 @@
   "address": "0.0.0.0:3456",
   "user_name": "Slim",
   "room_name": "room101",
+  "websocket_signaling": true,
+  "websocket_port": 3457,
   "encryption": true,
   "whisper": true,
   "llama": true,

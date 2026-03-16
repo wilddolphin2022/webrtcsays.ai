@@ -127,6 +127,7 @@ static bool ParseCameraSpec(const std::string& spec,
 class DirectPeer; // forward declaration
 
 // Animated avatar driven by TTS audio energy
+#if defined(WEBRTC_SPEECH_DEVICES)
 class TalkingFaceRenderer {
  public:
   TalkingFaceRenderer(rtc::scoped_refptr<webrtc::FakeVideoTrackSource> src,
@@ -139,6 +140,7 @@ class TalkingFaceRenderer {
     if (running_) return;
     running_ = true;
     thread_ = std::thread([this]() {
+      rtc::scoped_refptr<webrtc::I420Buffer> last_i420;
       while (running_) {
         YUVData yuv;
         if (face_->renderFrame(yuv)) {
@@ -146,9 +148,22 @@ class TalkingFaceRenderer {
           memcpy(i420->MutableDataY(), yuv.y.get(), yuv.y_size);
           memcpy(i420->MutableDataU(), yuv.u.get(), yuv.uv_size);
           memcpy(i420->MutableDataV(), yuv.v.get(), yuv.uv_size);
+          last_i420 = i420;
+        }
+
+        // Keep emitting frames even when renderFrame() has no fresh update yet.
+        if (!last_i420) {
+          auto i420 = webrtc::I420Buffer::Create(640, 480);
+          memset(i420->MutableDataY(), 16, i420->StrideY() * i420->height());
+          memset(i420->MutableDataU(), 128, i420->StrideU() * ((i420->height() + 1) / 2));
+          memset(i420->MutableDataV(), 128, i420->StrideV() * ((i420->height() + 1) / 2));
+          last_i420 = i420;
+        }
+
+        if (last_i420) {
           webrtc::VideoFrame frame =
               webrtc::VideoFrame::Builder()
-                  .set_video_frame_buffer(i420)
+                  .set_video_frame_buffer(last_i420)
                   .set_timestamp_us(rtc::TimeMicros())
                   .build();
           src_->InjectFrame(frame);
@@ -192,6 +207,7 @@ CreateTalkingFaceVideoSource(DirectPeer* owner) {
   RTC_LOG(LS_INFO) << "TalkingFace video source created (640x480@24fps)";
   return track_source;
 }
+#endif  // defined(WEBRTC_SPEECH_DEVICES)
 
 rtc::scoped_refptr<webrtc::VideoTrackSourceInterface>
 CreateCameraVideoSource(DirectPeer* owner, const Options& opts) {
@@ -485,61 +501,29 @@ void DirectPeer::HandleMessage(rtc::AsyncPacketSocket* socket,
           RTC_LOG(LS_ERROR) << "Peer is not a caller, cannot wait";
         }
    } else if (!is_caller() && message.find(Msg::kOfferPrefix) == 0) {
-      // --------------------------------------------------------------
-      // OFFER (callee side) – may arrive in several TCP fragments.
-      // --------------------------------------------------------------
       const size_t prefix_len = sizeof(Msg::kOfferPrefix) - 1; // length of "OFFER:"
-      std::string sdp_fragment = message.substr(prefix_len);
-
-      pending_remote_sdp_ += sdp_fragment;
-
-      // Try parsing the accumulated buffer to see if we now have the full SDP.
-      webrtc::SdpParseError err;
-      std::unique_ptr<webrtc::SessionDescriptionInterface> test_desc =
-          webrtc::CreateSessionDescription(webrtc::SdpType::kOffer, pending_remote_sdp_, &err);
-
-      if (!test_desc) {
-        RTC_LOG(LS_WARNING) << "Partial SDP OFFER fragment received – waiting for more (" << err.description << ")";
-        return; // wait for more fragments
-      }
-
-      // Full SDP successfully parsed – process it.
-      std::string complete_sdp = pending_remote_sdp_;
-      pending_remote_sdp_.clear();
-      SetRemoteDescription(complete_sdp);
+      std::string sdp = message.substr(prefix_len);
+      SetRemoteDescription(sdp);
 
    } else if (is_caller() && message.find(Msg::kAnswerPrefix) == 0) {
-      // --------------------------------------------------------------
-      // ANSWER (caller side) – may arrive in several TCP fragments.
-      // --------------------------------------------------------------
       const size_t prefix_len = sizeof(Msg::kAnswerPrefix) - 1; // length of "ANSWER:"
-      std::string sdp_fragment = message.substr(prefix_len);
-
-      pending_remote_sdp_ += sdp_fragment;
-
-      webrtc::SdpParseError err;
-      std::unique_ptr<webrtc::SessionDescriptionInterface> test_desc =
-          webrtc::CreateSessionDescription(webrtc::SdpType::kAnswer, pending_remote_sdp_, &err);
-
-      if (!test_desc) {
-        RTC_LOG(LS_WARNING) << "Partial SDP ANSWER fragment received – waiting for more (" << err.description << ")";
-        return; // Not complete yet
-      }
-
-      std::string complete_sdp = pending_remote_sdp_;
-      pending_remote_sdp_.clear();
-      SetRemoteDescription(complete_sdp);
+      std::string sdp = message.substr(prefix_len);
+      SetRemoteDescription(sdp);
    } else if (message.find(Msg::kFacePrefix) == 0) {
       std::string payload = message.substr(sizeof(Msg::kFacePrefix) - 1);
       RTC_LOG(LS_INFO) << "Received FACE command with payload size: " << payload.size();
       // Decode base64 and set image
       std::string decoded;
+#if defined(WEBRTC_SPEECH_DEVICES)
       if (rtc::Base64::DecodeFromArray(payload.data(), payload.size(), rtc::Base64::DO_STRICT, &decoded, nullptr)) {
           webrtc::SpeechAudioDeviceFactory::SetTalkingFaceImageFromMemory(
               reinterpret_cast<const uint8_t*>(decoded.data()), decoded.size(), 0, 0);
       } else {
           RTC_LOG(LS_ERROR) << "Failed to decode base64 FACE payload";
       }
+#else
+      RTC_LOG(LS_WARNING) << "FACE command ignored: build has no WEBRTC_SPEECH_DEVICES";
+#endif
     } else if (message.find(Msg::kIcePrefix) == 0) {
       std::string payload = message.substr(sizeof(Msg::kIcePrefix) - 1);
       size_t delim = payload.find(':');
@@ -601,11 +585,121 @@ void DirectPeer::SetRemoteDescription(const std::string& sdp) {
                         << (is_caller() ? "ANSWER" : "OFFER");
         
         webrtc::SdpParseError error;
-        webrtc::SdpType sdp_type = is_caller() ? webrtc::SdpType::kAnswer 
-                                             : webrtc::SdpType::kOffer;
-        
-        std::unique_ptr<webrtc::SessionDescriptionInterface> session_description =
-            webrtc::CreateSessionDescription(sdp_type, sdp, &error);
+        webrtc::SdpType sdp_type = is_caller() ? webrtc::SdpType::kAnswer
+                                               : webrtc::SdpType::kOffer;
+
+        auto remove_sdp_line_once = [](std::string* sdp_text, const std::string& line) -> bool {
+          if (!sdp_text || line.empty()) return false;
+          if (line.rfind("a=fingerprint:", 0) == 0) return false;
+          if (line.rfind("m=", 0) == 0) return false;
+          size_t pos = sdp_text->find(line + "\r\n");
+          if (pos != std::string::npos) {
+            sdp_text->erase(pos, line.size() + 2);
+            return true;
+          }
+          pos = sdp_text->find(line + "\n");
+          if (pos != std::string::npos) {
+            sdp_text->erase(pos, line.size() + 1);
+            return true;
+          }
+          pos = sdp_text->find("\r\n" + line);
+          if (pos != std::string::npos) {
+            sdp_text->erase(pos, line.size() + 2);
+            return true;
+          }
+          pos = sdp_text->find("\n" + line);
+          if (pos != std::string::npos) {
+            sdp_text->erase(pos, line.size() + 1);
+            return true;
+          }
+          return false;
+        };
+
+        // Normalize browser SDP for the legacy parser:
+        // - ensure consistent CRLF boundaries,
+        // - move DTLS attributes (fingerprint/setup) to session-level.
+        std::string parse_sdp = sdp;
+        {
+          std::string norm;
+          norm.reserve(parse_sdp.size() + 32);
+          for (size_t i = 0; i < parse_sdp.size(); ++i) {
+            const char c = parse_sdp[i];
+            if (c == '\r') {
+              if (i + 1 < parse_sdp.size() && parse_sdp[i + 1] == '\n') {
+                norm.push_back('\r');
+                norm.push_back('\n');
+                ++i;
+              } else {
+                norm.push_back('\r');
+                norm.push_back('\n');
+              }
+            } else if (c == '\n') {
+              norm.push_back('\r');
+              norm.push_back('\n');
+            } else {
+              norm.push_back(c);
+            }
+          }
+          parse_sdp.swap(norm);
+        }
+
+        std::string session_fp;
+        std::string session_setup;
+        std::vector<std::string> session_lines;
+        std::vector<std::string> media_lines;
+        {
+          bool in_media = false;
+          size_t start = 0;
+          while (start <= parse_sdp.size()) {
+            size_t end = parse_sdp.find("\r\n", start);
+            std::string line = (end == std::string::npos)
+                                   ? parse_sdp.substr(start)
+                                   : parse_sdp.substr(start, end - start);
+            if (!line.empty()) {
+              if (line.rfind("m=", 0) == 0) in_media = true;
+              if (line.rfind("a=fingerprint:", 0) == 0) {
+                if (session_fp.empty()) session_fp = line;
+              } else if (line.rfind("a=setup:", 0) == 0) {
+                if (session_setup.empty()) session_setup = line;
+              } else if (in_media) {
+                media_lines.push_back(line);
+              } else {
+                session_lines.push_back(line);
+              }
+            }
+            if (end == std::string::npos) break;
+            start = end + 2;
+          }
+        }
+        if (!session_fp.empty() || !session_setup.empty()) {
+          std::string rebuilt;
+          rebuilt.reserve(parse_sdp.size() + 64);
+          bool inserted_dtls = false;
+          for (const auto& line : session_lines) {
+            rebuilt.append(line).append("\r\n");
+            if (!inserted_dtls && line.rfind("t=", 0) == 0) {
+              if (!session_fp.empty()) rebuilt.append(session_fp).append("\r\n");
+              if (!session_setup.empty()) rebuilt.append(session_setup).append("\r\n");
+              inserted_dtls = true;
+            }
+          }
+          if (!inserted_dtls) {
+            if (!session_fp.empty()) rebuilt.append(session_fp).append("\r\n");
+            if (!session_setup.empty()) rebuilt.append(session_setup).append("\r\n");
+          }
+          for (const auto& line : media_lines) {
+            rebuilt.append(line).append("\r\n");
+          }
+          parse_sdp.swap(rebuilt);
+        }
+
+        std::unique_ptr<webrtc::SessionDescriptionInterface> session_description;
+        for (int attempt = 0; attempt < 128; ++attempt) {
+          session_description = webrtc::CreateSessionDescription(sdp_type, parse_sdp, &error);
+          if (session_description) break;
+          if (error.line.empty()) break;
+          if (!remove_sdp_line_once(&parse_sdp, error.line)) break;
+        }
             
         if (!session_description) {
             RTC_LOG(LS_ERROR) << "Failed to parse remote SDP: " << error.description;
@@ -702,15 +796,16 @@ void DirectPeer::SetRemoteDescription(const std::string& sdp) {
                     }
 
                     if (!track_added) {
-                        RTC_LOG(LS_ERROR) << "Could not attach audio track – aborting answer creation.";
-                        return;
+                        RTC_LOG(LS_WARNING) << "Could not attach audio track – creating answer without local audio track.";
                     }
 
                     // Create a video track source for the callee if video is enabled.
                     if (opts_.video) {
+#if defined(WEBRTC_SPEECH_DEVICES)
                         if (!opts_.talking_face.empty()) {
                             video_source_ = CreateTalkingFaceVideoSource(this);
                         }
+#endif
                         if (!video_source_ && !opts_.camera.empty()) {
                             video_source_ = CreateCameraVideoSource(this, opts_);
                         }
@@ -726,7 +821,32 @@ void DirectPeer::SetRemoteDescription(const std::string& sdp) {
                                 });
                             }
                         }
-                        SetVideoSource(video_source_);
+                        bool video_attached = false;
+                        if (video_source_) {
+                          auto local_video_track =
+                              peer_connection_factory_->CreateVideoTrack(video_source_, "video_track");
+                          if (local_video_track) {
+                            video_track_ = local_video_track;
+                            video_track_->set_enabled(true);
+                            for (const auto& t : peer_connection()->GetTransceivers()) {
+                              if (t->media_type() == cricket::MEDIA_TYPE_VIDEO) {
+                                auto sender = t->sender();
+                                if (sender && sender->SetTrack(video_track_.get())) {
+                                  auto dir_res = t->SetDirectionWithError(
+                                      webrtc::RtpTransceiverDirection::kSendRecv);
+                                  RTC_LOG(LS_INFO) << "Attached local video track to negotiated transceiver: "
+                                                   << (dir_res.ok() ? "ok" : dir_res.message());
+                                  video_attached = true;
+                                  break;
+                                }
+                              }
+                            }
+                          }
+                        }
+                        if (!video_attached) {
+                          RTC_LOG(LS_WARNING) << "Could not bind video track to negotiated transceiver; using AddTrack fallback";
+                          SetVideoSource(video_source_);
+                        }
                         RTC_LOG(LS_INFO) << "Video source configured for callee.";
                     }
 

@@ -108,6 +108,8 @@ struct Options {
     int whisper_threads = 0; // 0 = auto (hardware_concurrency)
     int llama_threads = 0;   // 0 = auto (hardware_concurrency)
     int tts_threads = 0;     // 0 = auto (hardware_concurrency)
+    bool websocket_signaling = true;  // expose raw WebSocket signaling endpoint
+    int websocket_port = 3457;        // raw WebSocket signaling port
 };
 
 // Function to parse command line string to above options
