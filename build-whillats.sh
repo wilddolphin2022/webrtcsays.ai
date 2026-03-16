@@ -20,7 +20,7 @@ clean()
 }
 
 WEBRTC_SRC_DIR="${PWD}/../src"
-WHILLATS_DIR="${WEBRTC_SRC_DIR}/third_party//whillats"
+WHILLATS_DIR="${WEBRTC_SRC_DIR}/third_party/whillats"
 WHILLATS_THIRD_PARTY_DIR="${WHILLATS_DIR}/third_party"
 
 case "$(uname -s | tr '[:upper:]' '[:lower:]')" in
@@ -97,9 +97,9 @@ done
     echo "building whisper.cpp"
     cmake -B build
 
-    if [ "${BUILD_TYPE}" = "release" ]
+    if [ "${BUILD_TYPE}" = "release" ]; then
         cmake --build build --config Release  
-    then
+    else
         cmake --build build --config Debug  
     fi
 
@@ -120,9 +120,9 @@ done
     echo "building llama.cpp"
     cmake -B build
 
-    if [ "${BUILD_TYPE}" = "release" ]
+    if [ "${BUILD_TYPE}" = "release" ]; then
         cmake --build build --config Release  
-    then
+    else
         cmake --build build --config Debug  
     fi
 
@@ -138,16 +138,16 @@ done
 
     cmake -B build
 
-    if [ "${BUILD_TYPE}" = "release" ]
+    if [ "${BUILD_TYPE}" = "release" ]; then
         cmake --build build --config Release  
-    then
+    else
         cmake --build build --config Debug  
     fi
 
     if [ "${HOST_PLATFORM}" = "linux" ]
     then
         echo "installing espeak-ng"
-        sudo make install
+        cd build; sudo make install; cd ..
     fi
 
     echo "building pcaudio"

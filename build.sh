@@ -219,8 +219,15 @@ build_whillats() {
         git submodule update --init modules/third_party/whillats
     fi
     
-    # Do not modify submodule branch if there are local edits; builds should use current working tree
-    echo "[build-whillats] Skipping submodule branch checkout to preserve local edits"
+    # Checkout the same branch as the parent repo in the submodule
+    echo "[build-whillats] Checking out branch $CURRENT_BRANCH in whillats submodule"
+    pushd "$WHILLATS_DIR"
+    if git fetch origin "$CURRENT_BRANCH" 2>/dev/null; then
+        git checkout "$CURRENT_BRANCH" 2>/dev/null || echo "[build-whillats] WARNING: Branch $CURRENT_BRANCH not found in whillats, using current HEAD"
+    else
+        echo "[build-whillats] WARNING: Could not fetch $CURRENT_BRANCH from whillats remote, using current HEAD"
+    fi
+    popd
 
     if [ ! -d "$WHILLATS_DIR" ]; then
         echo "ERROR: $WHILLATS_DIR directory not found."
@@ -466,9 +473,6 @@ if [[ "$ENABLE_WHILLATS" == "true" ]]; then
         if [ ! -d "$WHILLATS_DIR" ] || [ -z "$(ls -A "$WHILLATS_DIR" 2>/dev/null)" ]; then
             echo "Initializing parent submodule: modules/third_party/whillats"
             git submodule update --init --recursive modules/third_party/whillats
-        else
-            echo "Updating submodule: modules/third_party/whillats"
-            git submodule update --recursive --remote modules/third_party/whillats || true
         fi
         build_whillats "$BUILD_TYPE"
     fi

@@ -35,7 +35,6 @@
 #include "pc/test/fake_video_track_source.h"
 #include "api/video/i420_buffer.h"
 #include "modules/audio_device/speech/speech_audio_device_factory.h"
-#include "modules/third_party/whillats/src/talking_face.h"
 #include "test/test_video_capturer.h"
 #if !defined(WEBRTC_IOS) && !defined(WEBRTC_MAC)
 #include "test/platform_video_capturer.h"
