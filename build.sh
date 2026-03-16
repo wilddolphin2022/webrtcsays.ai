@@ -250,45 +250,23 @@ build_whillats() {
 
     pushd "$WHILLATS_DIR"
 
-    # Patch: Check for GCC 11 and set build configuration (Linux only)
-    CMAKE_CUDA_DISABLED=""
-    CMAKE_CUDA_COMPILER_ARG=""
-    CMAKE_CUDA_HOST_COMPILER_ARG=""
-    CMAKE_CUDA_STANDARD=""
-    CMAKE_CXX_STANDARD=""
-    CMAKE_CUDA_ARCH=""
-    CMAKE_CUDA_FLAGS=""
-    GGML_CUDA_ON=""
+    # --- GPU backend detection: Metal on macOS, CUDA on Linux ---
+    GPU_FLAGS=""
     
-    # Skip CUDA configuration on macOS and enable Metal instead
     if [[ "$OSTYPE" == "darwin"* ]]; then
-        echo "[build-whillats] macOS detected, enabling Metal GPU acceleration and disabling CUDA"
-        CMAKE_CUDA_DISABLED="-DGGML_CUDA=OFF -DWHISPER_CUDA=OFF -DGGML_CUBLAS=OFF -DLLAMA_CUDA=OFF"
-    elif grep -q 'GGML_CUDA' CMakeLists.txt || grep -r 'CUDA' .; then
-        GGML_CUDA_ON="1"
-        if ! command -v gcc-11 >/dev/null 2>&1 || ! command -v g++-11 >/dev/null 2>&1; then
-            echo "[build-whillats] gcc-11/g++-11 not found. Attempting to install..."
-            if [ "$EUID" -ne 0 ]; then
-                if command -v sudo >/dev/null 2>&1; then
-                    sudo apt-get update && sudo apt-get install -y gcc-11 g++-11
-                else
-                    echo "[build-whillats] ERROR: sudo not found. Please install gcc-11 and g++-11 manually."
-                    exit 1
-                fi
-            else
-                apt-get update && apt-get install -y gcc-11 g++-11
-            fi
+        echo "[build-whillats] macOS detected, enabling Metal GPU acceleration"
+        GPU_FLAGS="-DGGML_METAL=ON -DGGML_CUDA=OFF"
+    elif command -v nvcc >/dev/null 2>&1; then
+        echo "[build-whillats] NVCC found, enabling CUDA GPU acceleration"
+        GPU_FLAGS="-DGGML_METAL=OFF -DGGML_CUDA=ON"
+        NATIVE_ARCH=$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null | head -1 | tr -d '.')
+        if [ -n "$NATIVE_ARCH" ]; then
+            echo "[build-whillats] Detected native CUDA architecture: sm_${NATIVE_ARCH}"
+            GPU_FLAGS="$GPU_FLAGS -DCMAKE_CUDA_ARCHITECTURES=${NATIVE_ARCH}-real"
         fi
-        if command -v nvcc >/dev/null 2>&1; then
-            echo "[build-whillats] NVCC found, but using CPU-only mode due to CUDA 12.8 + glibc 2.41 compatibility"
-            echo "[build-whillats] Your RTX 3050 is ready for CUDA when compatibility is resolved"
-            echo "[build-whillats] Building with optimized CPU-only mode for now"
-            CMAKE_CUDA_DISABLED="-DGGML_CUDA=OFF -DWHISPER_CUDA=OFF -DGGML_CUBLAS=OFF -DLLAMA_CUDA=OFF"
-
-        else
-            echo "[build-whillats] NVCC not found. Building in CPU-only mode."
-            CMAKE_CUDA_DISABLED="-DGGML_CUDA=OFF -DWHISPER_CUDA=OFF -DGGML_CUBLAS=OFF -DLLAMA_CUDA=OFF"
-        fi
+    else
+        echo "[build-whillats] No GPU acceleration available, building CPU-only"
+        GPU_FLAGS="-DGGML_METAL=OFF -DGGML_CUDA=OFF"
     fi
     # Check available disk space and memory before building
     AVAILABLE_SPACE=$(df . | tail -1 | awk '{print $4}')
@@ -310,57 +288,38 @@ build_whillats() {
         echo "[build-whillats] Native environment, Available memory: ${AVAILABLE_MEM}MB"
     fi
     
-    # Set conservative compilation flags for memory-constrained environments
-    MEMORY_CONSERVATIVE_FLAGS=""
     PARALLEL_JOBS=1
     if [ "$AVAILABLE_MEM" -lt 2000 ]; then
-        echo "[build-whillats] Very low memory detected (<2GB), skipping whillats build to prevent OOM"
-        echo "[build-whillats] To build whillats, ensure at least 2GB of available memory"
+        echo "[build-whillats] Very low memory (<2GB), skipping whillats build"
         popd
         return 0
     elif [ "$AVAILABLE_MEM" -lt 4000 ]; then
-        echo "[build-whillats] Low memory detected, using very conservative build settings"
-        MEMORY_CONSERVATIVE_FLAGS="-DCMAKE_CXX_FLAGS_RELEASE=-O1 -DCMAKE_C_FLAGS_RELEASE=-O1 -DCMAKE_CXX_FLAGS_DEBUG=-O0 -DCMAKE_C_FLAGS_DEBUG=-O0 -DWHISPER_NO_AVX=ON -DWHISPER_NO_AVX2=ON -DWHISPER_NO_FMA=ON -DWHISPER_NO_F16C=ON"
         PARALLEL_JOBS=1
     elif [ "$AVAILABLE_MEM" -lt 8000 ]; then
-        echo "[build-whillats] Medium memory detected, using moderate build settings"
-        MEMORY_CONSERVATIVE_FLAGS="-DCMAKE_CXX_FLAGS_RELEASE=-O2 -DCMAKE_C_FLAGS_RELEASE=-O2"
         PARALLEL_JOBS=2
     else
-        echo "[build-whillats] Sufficient memory detected, using standard build settings"
         PARALLEL_JOBS=4
     fi
+    echo "[build-whillats] Using $PARALLEL_JOBS parallel jobs"
     
-    # Clean any previous build to free space
     if [ -d "build" ]; then
-        echo "[build-whillats] Removing previous build directory to free space..."
+        echo "[build-whillats] Removing previous build directory..."
         rm -rf build
     fi
     
-    # Use Metal on macOS, disable on other platforms
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        METAL_ARG="-DGGML_METAL=ON"
-    else
-        METAL_ARG="-DGGML_METAL=OFF"
-    fi
-    
-    # Add timeout and verbose output for cmake
-    echo "[build-whillats] Starting CMake configuration with timeout and memory-conscious settings..."
     if [ "$BUILD_TYPE" = "debug" ]; then
-        timeout 600 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug $METAL_ARG $CMAKE_CUDA_DISABLED $MEMORY_CONSERVATIVE_FLAGS --fresh || {
-            echo "[build-whillats] CMake configuration timed out or failed. Retrying with verbose output..."
-            cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug $METAL_ARG $CMAKE_CUDA_DISABLED $MEMORY_CONSERVATIVE_FLAGS --fresh -DCMAKE_VERBOSE_MAKEFILE=ON
-        }
-        echo "[build-whillats] Starting build with $PARALLEL_JOBS parallel jobs..."
-        cmake --build build --parallel $PARALLEL_JOBS
+        CMAKE_BUILD_TYPE="Debug"
     else
-        timeout 600 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release $METAL_ARG $CMAKE_CUDA_DISABLED $MEMORY_CONSERVATIVE_FLAGS --fresh || {
-            echo "[build-whillats] CMake configuration timed out or failed. Retrying with verbose output..."
-            cmake -S . -B build -DCMAKE_BUILD_TYPE=Release $METAL_ARG $CMAKE_CUDA_DISABLED $MEMORY_CONSERVATIVE_FLAGS --fresh -DCMAKE_VERBOSE_MAKEFILE=ON
-        }
-        echo "[build-whillats] Starting build with $PARALLEL_JOBS parallel jobs..."
-        cmake --build build --parallel $PARALLEL_JOBS
+        CMAKE_BUILD_TYPE="Release"
     fi
+
+    echo "[build-whillats] Configuring CMake ($CMAKE_BUILD_TYPE) with GPU flags: $GPU_FLAGS"
+    timeout 600 cmake -S . -B build -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE $GPU_FLAGS --fresh || {
+        echo "[build-whillats] CMake configuration failed. Retrying with verbose output..."
+        cmake -S . -B build -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE $GPU_FLAGS --fresh -DCMAKE_VERBOSE_MAKEFILE=ON
+    }
+    echo "[build-whillats] Building with $PARALLEL_JOBS parallel jobs..."
+    cmake --build build --parallel $PARALLEL_JOBS
     popd
     echo "[build-whillats] Whisper/Llama/TTS build completed."
 }
