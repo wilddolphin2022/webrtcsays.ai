@@ -13,6 +13,7 @@
 #ifndef AUDIO_DEVICE_WHISPER_AUDIO_DEVICE_H_
 #define AUDIO_DEVICE_WHISPER_AUDIO_DEVICE_H_
 
+#include <atomic>
 #include <string>
 #include <memory>
 #include <queue>
@@ -177,6 +178,11 @@ class WhisperAudioDevice : public SpeechAudioDevice {
   std::queue<std::string> _textQueue;
   absl::Mutex _queueMutex;
   std::condition_variable _queueCondition;
+
+ public:
+  char _llamaPendingBuf[4096];
+  std::atomic<size_t> _llamaPendingLen{0};
+ private:
   
   std::vector<uint16_t> _ttsBuffer;  // Instance member to hold TTS audio
   size_t _ttsIndex = 0;  // Instance member to track buffer index

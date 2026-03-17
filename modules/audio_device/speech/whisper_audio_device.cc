@@ -86,12 +86,16 @@ void languageResponseCallback(bool success, const char* language, void* user_dat
 
 void llamaResponseCallback(bool success, const char* response, void* user_data) {
   WhisperAudioDevice* audio_device = static_cast<WhisperAudioDevice*>(user_data);
-  if (!audio_device) return;
-  // Handle response here
-  RTC_LOG(LS_INFO) << "Llama response via callback: " << response;
-  if(success) {
-    audio_device->speakText(std::string(response));
-  }
+  if (!audio_device || !success || !response) return;
+
+  size_t len = strnlen(response, 4095);
+  if (len == 0) return;
+
+  // Pure C operations only - no C++ objects, no RTC_LOG, no std::string.
+  // This callback runs on the libstdc++ Llama thread; any libc++ usage crashes.
+  memcpy(audio_device->_llamaPendingBuf, response, len);
+  audio_device->_llamaPendingBuf[len] = '\0';
+  audio_device->_llamaPendingLen.store(len, std::memory_order_release);
 }
 
 WhisperAudioDevice::WhisperAudioDevice(
@@ -394,6 +398,15 @@ bool WhisperAudioDevice::RecThreadProcess() {
     }
 
     if (_ttsBuffer.empty()) {
+      // Drain pending Llama response (written by C-only callback on Llama thread)
+      size_t plen = _llamaPendingLen.load(std::memory_order_acquire);
+      if (plen > 0) {
+        std::string resp(_llamaPendingBuf, plen);
+        _llamaPendingLen.store(0, std::memory_order_release);
+        RTC_LOG(LS_INFO) << "Llama response (" << plen << " bytes): " << resp;
+        speakText(resp);
+      }
+
       // Only process new text when current audio is finished
       bool shouldSynthesize = false;
       std::string textToSpeak;
