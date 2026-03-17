@@ -581,8 +581,18 @@ bool DirectApplication::CreatePeerConnection() {
 #if LLAMA_NOTIFICATION_ENABLED
     llama_ = webrtc::SpeechAudioDeviceFactory::CreateWhillatsLlama(llamaCallback_);
 #endif
-    // Disable eager llama preload: on this host model startup is fast enough,
-    // and deferred start avoids session-start instability.
+    // Preload model file into OS page cache so InitPlayout is fast
+    if (!opts_.llama_model.empty()) {
+      std::thread([model = opts_.llama_model]() {
+        FILE* f = fopen(model.c_str(), "rb");
+        if (f) {
+          char buf[1 << 20];
+          while (fread(buf, 1, sizeof(buf), f) > 0) {}
+          fclose(f);
+          RTC_LOG(LS_INFO) << "Preloaded llama model into page cache: " << model;
+        }
+      }).detach();
+    }
   } 
 
   if (opts_.whisper && !opts_.whisper_model.empty()) {
@@ -590,6 +600,17 @@ bool DirectApplication::CreatePeerConnection() {
     webrtc::SpeechAudioDeviceFactory::SetWhisperEnabled(true);
     webrtc::SpeechAudioDeviceFactory::SetWhisperModelFilename(opts_.whisper_model);
     webrtc::SpeechAudioDeviceFactory::SetLanguage(opts_.language);
+
+    // Preload whisper model into page cache
+    std::thread([model = opts_.whisper_model]() {
+      FILE* f = fopen(model.c_str(), "rb");
+      if (f) {
+        char buf[1 << 20];
+        while (fread(buf, 1, sizeof(buf), f) > 0) {}
+        fclose(f);
+        RTC_LOG(LS_INFO) << "Preloaded whisper model into page cache: " << model;
+      }
+    }).detach();
   }
 
   if (opts_.llama && !opts_.llama_llava_yuv.empty()) {
