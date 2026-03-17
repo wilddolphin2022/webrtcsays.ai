@@ -593,6 +593,24 @@ int main(int argc, char* argv[]) {
           return 1;
         }
         callee->RunOnBackgroundThread();
+
+        // Preload AI model files into OS page cache on a background thread
+        // so the first call doesn't stall on disk I/O
+        if (session_count == 1) {
+          std::thread([&opts]() {
+            auto preload = [](const std::string& path, const char* name) {
+              if (path.empty()) return;
+              FILE* f = fopen(path.c_str(), "rb");
+              if (!f) return;
+              char buf[1 << 20];
+              while (fread(buf, 1, sizeof(buf), f) > 0) {}
+              fclose(f);
+              fprintf(stderr, "Preloaded %s into page cache: %s\n", name, path.c_str());
+            };
+            preload(opts.llama_model, "llama");
+            preload(opts.whisper_model, "whisper");
+          }).detach();
+        }
       }
 
       // Prepare new session and wait for CANCEL or Ctrl+C
