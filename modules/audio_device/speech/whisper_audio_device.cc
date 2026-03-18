@@ -56,11 +56,6 @@ void ttsAudioCallback(bool success, const uint16_t* buffer, size_t buffer_size, 
     RTC_LOG(LS_VERBOSE) << "Generated " << buffer_size << " audio samples (" 
       << buffer_size / 16000 << " s)";
     audio_device->SetTTSBuffer(buffer, buffer_size);
-
-    auto* face = SpeechAudioDeviceFactory::talkingFace();
-    if (face) {
-      face->feedAudio(reinterpret_cast<const int16_t*>(buffer), buffer_size);
-    }
   }
 }
 
@@ -375,18 +370,27 @@ bool WhisperAudioDevice::RecThreadProcess() {
           RTC_LOG(LS_INFO) << "Finished playing TTS buffer, resetting";
           _ttsIndex = 0;
           _ttsBuffer.clear();
+          // Close mouth when done speaking
+          auto* face = SpeechAudioDeviceFactory::talkingFace();
+          if (face) face->feedAudio(nullptr, 0);
         } else {
           size_t remainingSamples = _ttsBuffer.size() - _ttsIndex;
           size_t samplesToCopy = std::min(_recordingFramesIn10MS, remainingSamples);
 
           if (samplesToCopy > 0 && _recordingBuffer != nullptr) {
-            // Copy TTS samples into recording buffer (as bytes)
-            const int8_t* src = reinterpret_cast<const int8_t*>(& _ttsBuffer[_ttsIndex]);
+            const int8_t* src = reinterpret_cast<const int8_t*>(&_ttsBuffer[_ttsIndex]);
             const int8_t* end = src + samplesToCopy * sizeof(short);
             std::copy(src, end, _recordingBuffer);
+
+            // Feed this 10ms chunk to talking face for lip-sync
+            auto* face = SpeechAudioDeviceFactory::talkingFace();
+            if (face) {
+              face->feedAudio(reinterpret_cast<const int16_t*>(&_ttsBuffer[_ttsIndex]),
+                              samplesToCopy);
+            }
+
             _ttsIndex += samplesToCopy;
 
-            // Fill any leftover with silence
             std::fill_n(
               _recordingBuffer + samplesToCopy * sizeof(short),
               (_recordingFramesIn10MS - samplesToCopy) * sizeof(short),
