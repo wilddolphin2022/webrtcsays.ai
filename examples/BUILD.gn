@@ -1154,13 +1154,7 @@ if (!build_with_chromium) {
           if (!defined(ldflags)) { ldflags = [] }
           ldflags += [ rebase_path("//modules/third_party/whillats/build/lib/" + whillats_subdir + "/libwhillats.dylib", root_build_dir) ]
         } else if (is_linux) {
-          if (is_debug) {
-            whillats_subdir = "debug"
-          } else {
-            whillats_subdir = "release"
-          }
-          lib_dirs = [ "../modules/third_party/whillats/build/lib/" + whillats_subdir ]
-          libs = [ "whillats" ]
+          # Thin whillats compiled in-tree via speech_audio_device — no external .so
         }
       }
 
