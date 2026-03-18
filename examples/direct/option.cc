@@ -305,21 +305,32 @@ Options parseOptions(const std::vector<std::string>& args) {
                 RTC_LOG(LS_INFO) << "Config has turns params (string)";
                 opts.turns = t.asString();
             } else if (t.isArray()) {
-                // Expect [ uri, username, password ]
-                if (t.size() >= 3 && t[0].isString() && t[1].isString() && t[2].isString()) {
+                if (t.size() >= 3 && t[0].isString()) {
                     std::string joined;
                     for (Json::ArrayIndex i = 0; i < t.size(); ++i) {
-                        if (!t[i].isString()) {
-                            RTC_LOG(LS_WARNING) << "turns array element " << i << " is not string – skipping";
-                            continue;
-                        }
+                        if (!t[i].isString()) continue;
                         if (!joined.empty()) joined += ";";
                         joined += t[i].asString();
                     }
                     opts.turns = joined;
                     RTC_LOG(LS_INFO) << "Config turns array joined to: " << opts.turns;
+                } else if (t.size() > 0 && t[0].isArray()) {
+                    std::string joined;
+                    for (Json::ArrayIndex j = 0; j < t.size(); ++j) {
+                        const Json::Value& entry = t[j];
+                        if (!entry.isArray() || entry.size() < 3) continue;
+                        for (Json::ArrayIndex k = 0; k < entry.size(); ++k) {
+                            if (!entry[k].isString()) continue;
+                            if (!joined.empty()) joined += ";";
+                            joined += entry[k].asString();
+                        }
+                    }
+                    if (!joined.empty()) {
+                        opts.turns = joined;
+                        RTC_LOG(LS_INFO) << "Config turns (array-of-arrays) joined to: " << opts.turns;
+                    }
                 } else {
-                    RTC_LOG(LS_WARNING) << "`turns` array has unexpected structure; expecting at least 3 string elements (uri, user, pass). Ignored.";
+                    RTC_LOG(LS_WARNING) << "`turns` array has unexpected structure; ignored.";
                 }
             } else {
                 RTC_LOG(LS_WARNING) << "`turns` is neither string nor array – ignored";

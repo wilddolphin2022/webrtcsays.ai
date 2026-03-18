@@ -1160,7 +1160,7 @@ if (!build_with_chromium) {
             whillats_subdir = "release"
           }
           lib_dirs = [ "../modules/third_party/whillats/build/lib/" + whillats_subdir ]
-          libs = [ "whillats", "whisper", "espeak-ng", "speechPlayer", "ucd", "mtmd_shared" ]
+          libs = [ "whillats" ]
         }
       }
 
@@ -1255,7 +1255,7 @@ if (!build_with_chromium) {
             whillats_subdir = "release"
           }
           lib_dirs = [ "../modules/third_party/whillats/build/lib/" + whillats_subdir ]
-          libs = [ "whillats", "whisper", "espeak-ng", "speechPlayer", "ucd", "mtmd_shared" ]
+          libs = [ "whillats" ]
           ldflags += [ "-Wl,-rpath,\$ORIGIN/../../modules/third_party/whillats/build/lib/" + whillats_subdir ]
       }
     }

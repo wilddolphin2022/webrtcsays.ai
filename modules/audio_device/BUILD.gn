@@ -557,21 +557,10 @@ if (rtc_use_speech_audio_devices) {
       ]
       libs = [
         "whillats",
-        "whisper",
-        "llama", 
-        "ggml",
-        "ggml-cpu",
-        "ggml-base",
-        "espeak-ng",
-        "speechPlayer",
-        "ucd",
-        "mtmd_shared",
+        "whillats",
       ]
-      # Add system libraries needed by whillats on Linux
       libs += [
         "pthread",
-        "dl",
-        "m",
         "stdc++",
       ]
       # Allow undefined symbols for GLIBC compatibility

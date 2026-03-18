@@ -738,31 +738,20 @@ bool DirectApplication::CreatePeerConnection() {
   
   std::vector<cricket::RelayServerConfig> turn_servers;
 
-  //if(opts_.turns.size()) {
-    // Support multiple TURN server definitions separated by ';' (produced when
-    // JSON config used an array). Each element keeps the original
-    // "uri,username,password" triple.
-    std::vector<std::string> server_entries;
-    server_entries.push_back("turn:3.93.50.189:5349?transport=tcp,webrtcsays.ai,wilddolphin");
-    for(const auto& entry : server_entries) {
-        std::vector<std::string> turnsParams = stringSplit(entry, ",");
-        if(turnsParams.size() != 3) {
-            RTC_LOG(LS_WARNING) << "TURN entry has " << turnsParams.size() << " segments, expected 3 – skipped: " << entry;
-            continue;
-        }
-
+  if(!opts_.turns.empty()) {
+    // turns string: "uri;user;pass;uri2;user2;pass2;..." (semicolon-separated triples)
+    std::vector<std::string> parts = stringSplit(opts_.turns, ";");
+    for (size_t i = 0; i + 2 < parts.size(); i += 3) {
         webrtc::PeerConnectionInterface::IceServer iceServer;
-        iceServer.uri = turnsParams[0];
-        iceServer.username = turnsParams[1];
-        iceServer.password = turnsParams[2];
-
-        RTC_LOG(LS_INFO) << "TURN config: uri=" << iceServer.uri
-                         << " user='" << iceServer.username
-                         << "' pass='" << iceServer.password << "'";
+        iceServer.uri = parts[i];
+        iceServer.username = parts[i + 1];
+        iceServer.password = parts[i + 2];
         iceServer.tls_cert_policy = webrtc::PeerConnectionInterface::kTlsCertPolicyInsecureNoCheck;
         config.servers.push_back(iceServer);
+        RTC_LOG(LS_INFO) << "TURN config: uri=" << iceServer.uri
+                         << " user='" << iceServer.username << "'";
     }
-  //}
+  }
 
   config.disable_ipv6_on_wifi = true;            // Wi-Fi only
   config.max_ipv6_networks     = 0;   
