@@ -1,0 +1,40 @@
+{
+  "mode": "callee",
+  "address": "0.0.0.0:3458",
+  "user_name": "Slim",
+  "room_name": "room101",
+  "websocket_signaling": true,
+  "websocket_port": 3459,
+  "encryption": true,
+  "whisper": true,
+  "llama": true,
+  "video": true,
+  "bonjour": false,
+  "language": "en",
+  "whisper_model": "/opt/models/ggml-base.bin",
+  "llama_model": "/opt/models/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf",
+  "webrtc_cert_path": "/opt/directcall3/cert.pem",
+  "webrtc_key_path": "/opt/directcall3/key.pem",
+  "webrtc_speech_initial_playout_wav": "",
+  "turns": [
+    [
+      "turn:turn.wilddolphin.us:3478?transport=udp",
+      "webrtcsays.ai",
+      "wilddolphin"
+    ],
+    [
+      "turn:turn.wilddolphin.us:5349?transport=tcp",
+      "webrtcsays.ai",
+      "wilddolphin"
+    ]
+  ],
+  "talking_face": "/opt/directcall3/RobotPhoneLogo.jpeg",
+  "whisper_threads": 4,
+  "llama_threads": 6,
+  "tts_threads": 2,
+  "whispers": {
+    "en": [
+      "Hello, how are you?"
+    ]
+  }
+}

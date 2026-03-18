@@ -309,22 +309,10 @@ PY
   echo "[build] normalized compiler config aliases for standalone CI"
 fi
 
-cmake -S "${WHILLATS_DIR}" -B "${WHILLATS_BUILD_DIR}" \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DGGML_CUDA=OFF \
-  -DWHISPER_CUDA=OFF \
-  -DGGML_CUBLAS=OFF \
-  -DLLAMA_CUDA=OFF
-cmake --build "${WHILLATS_BUILD_DIR}" --config Release --parallel 4
-
-# Normalize output paths expected by directcall GN files.
-if [ -d "${WHILLATS_BUILD_DIR}/lib/Release" ]; then
-  mkdir -p "${WHILLATS_BUILD_DIR}/lib/release"
-  cp -a "${WHILLATS_BUILD_DIR}/lib/Release/." "${WHILLATS_BUILD_DIR}/lib/release/" || true
-fi
-if [ -d "${WHILLATS_BUILD_DIR}/bin/Release" ]; then
-  cp -a "${WHILLATS_BUILD_DIR}/bin/Release/." "${WHILLATS_BUILD_DIR}/bin/" || true
-fi
+# talkingface3: whillats client is compiled in-tree by GN.
+# whillats_server is built separately on the deploy target.
+# We only need the whillats source tree present for GN to find headers.
+echo "[build] whillats client will be compiled in-tree by GN (no libwhillats.so needed)"
 
 GN_BIN="${HOME}/depot_tools/gn"
 if [ -x "${GN_BIN}" ]; then
@@ -371,34 +359,18 @@ rm -rf "${DIST_DIR}"
 mkdir -p "${DIST_DIR}/lib"
 cp "${OUT_DIR}/directcall" "${DIST_DIR}/directcall"
 if [ -f "${OUT_DIR}/libdirect.so" ]; then
-  cp "${OUT_DIR}/libdirect.so" "${DIST_DIR}/libdirect.so"
-  cp "${OUT_DIR}/libdirect.so" "${DIST_DIR}/lib/" || true
+  cp "${OUT_DIR}/libdirect.so" "${DIST_DIR}/lib/libdirect.so"
+  echo "[build] included libdirect.so"
 fi
 
-echo "[build] collecting shared libraries from whillats build"
-find "${WHILLATS_BUILD_DIR}" -name '*.so*' -type f 2>/dev/null | while read -r sofile; do
-  cp -v "${sofile}" "${DIST_DIR}/lib/" 2>/dev/null || true
-done
-find "${WHILLATS_BUILD_DIR}" -name '*.so*' -type l 2>/dev/null | while read -r solink; do
-  cp -av "${solink}" "${DIST_DIR}/lib/" 2>/dev/null || true
-done
-
-echo "[build] collecting shared libraries from WebRTC out dir"
-for lib in libllama libggml libwhisper libespeak; do
-  find "${OUT_DIR}" -name "${lib}*.so*" 2>/dev/null | while read -r f; do
-    cp -av "${f}" "${DIST_DIR}/lib/" 2>/dev/null || true
-  done
-done
-
-echo "[build] dist/lib contents:"
-ls -la "${DIST_DIR}/lib/"
+echo "[build] directcall packaged (thin whillats client compiled in-tree, whillats_server deployed separately)"
 
 cat > "${DIST_DIR}/run-directcall.sh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export LD_LIBRARY_PATH="${SELF_DIR}/lib:${LD_LIBRARY_PATH:-}"
-exec "${SELF_DIR}/directcall" "$@"
+exec stdbuf -oL "${SELF_DIR}/directcall" "$@"
 EOF
 chmod +x "${DIST_DIR}/run-directcall.sh"
 
@@ -415,5 +387,4 @@ echo "[build] packaged artifact: ${ROOT_DIR}/dist/directcall-linux.tar.gz"
 echo "[build] cleaning up build artifacts to free disk space"
 rm -rf "${DIST_DIR}"
 rm -rf "${OUT_DIR}"
-rm -rf "${WHILLATS_BUILD_DIR}"
 echo "[build] cleanup done"
