@@ -6,6 +6,11 @@ set -e
 # Always set repo root ONCE at the top
 REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+CURRENT_SHA=$(git rev-parse HEAD)
+if [ "$CURRENT_BRANCH" = "HEAD" ]; then
+  echo "Detached HEAD detected (tag build). Using commit SHA: $CURRENT_SHA"
+  CURRENT_BRANCH="$CURRENT_SHA"
+fi
 WHILLATS_DIR="$REPO_ROOT/src/modules/third_party/whillats"
 
 # Clean up old directories if they exist, but keep src
@@ -15,10 +20,10 @@ if [ -f ".gclient" ]; then
     rm -f .gclient
 fi
 
-# Ensure we're on the avatar branch
-echo "Switching to $CURRENT_BRANCH branch..."
-git fetch origin $CURRENT_BRANCH 
-git checkout $CURRENT_BRANCH 
+# Ensure we're on the correct branch/commit
+echo "Switching to $CURRENT_BRANCH..."
+git fetch origin
+git checkout $CURRENT_BRANCH
 
 # Verify we're on the correct branch
 echo "Current commit: $(git rev-parse HEAD)"
@@ -106,8 +111,8 @@ cp .vpython3 src/ || { echo "WARNING: .vpython3 not found in root, build may fai
 # Navigate to src directory
 cd src
 
-git fetch origin $CURRENT_BRANCH 
-git checkout $CURRENT_BRANCH 
+git fetch origin
+git checkout $CURRENT_BRANCH
 
 # Detect platform architecture for sysroot
 ARCH=$(uname -m)
