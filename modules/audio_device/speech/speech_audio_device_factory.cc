@@ -51,8 +51,10 @@ absl::Mutex SpeechAudioDeviceFactory::_textToSpeakQueueMutex;
 
 WhillatsTTS* SpeechAudioDeviceFactory::CreateWhillatsTTS(WhillatsSetAudioCallback &ttsCallback) {
 
-  if(_ttsDevice)
+  if(_ttsDevice) {
+    _ttsDevice->setCallback(ttsCallback);
     return _ttsDevice.get();
+  }
 
   _ttsDevice = std::make_unique<WhillatsTTS>(ttsCallback);
   return _ttsDevice.get();
@@ -61,8 +63,11 @@ WhillatsTTS* SpeechAudioDeviceFactory::CreateWhillatsTTS(WhillatsSetAudioCallbac
 WhillatsTranscriber* SpeechAudioDeviceFactory::CreateWhillatsTranscriber
   (WhillatsSetResponseCallback &whisperCallback, WhillatsSetLanguageCallback &languageCallback) {
   if(_whisperEnabled) {
-    if(_whisperDevice)
+    if(_whisperDevice) {
+      _whisperDevice->setCallback(whisperCallback);
+      _whisperDevice->setLanguageCallback(languageCallback);
       return _whisperDevice.get();
+    }
 
     _whisperDevice = std::make_unique<WhillatsTranscriber>(_whisperModelFilename.c_str(), whisperCallback, languageCallback);
     return _whisperDevice.get();
@@ -72,8 +77,10 @@ WhillatsTranscriber* SpeechAudioDeviceFactory::CreateWhillatsTranscriber
 
 WhillatsLlama* SpeechAudioDeviceFactory::CreateWhillatsLlama(WhillatsSetResponseCallback &llamaCallback) {
   if(_llamaEnabled) {
-    if(_llamaDevice)
+    if(_llamaDevice) {
+      _llamaDevice->setCallback(llamaCallback);
       return _llamaDevice.get();
+    }
 
     _llamaDevice = std::make_unique<WhillatsLlama>(_llamaModelFilename.c_str(), _llavaMMProjFilename.c_str(), llamaCallback);
     return _llamaDevice.get();

@@ -612,11 +612,13 @@ int32_t WhisperAudioDevice::StopPlayout() {
   if (_tts) {
     std::queue<std::string> empty;
     std::swap(_textQueue, empty);
+    _tts->setCallback({nullptr, nullptr});
     _tts->stop();
-    _tts = nullptr; // local pointer; factory retains ownership for reuse
+    _tts = nullptr;
   }
 
   if (_llama_device) {
+    _llama_device->setCallback({nullptr, nullptr});
     _llama_device->stop();
     _llama_device = nullptr;
   }
@@ -624,6 +626,7 @@ int32_t WhisperAudioDevice::StopPlayout() {
   {
     std::lock_guard<std::mutex> tlock(_transcriber_mutex);
     if (_whisper_transcriber) {
+        _whisper_transcriber->setCallback({nullptr, nullptr});
         _whisper_transcriber->stop();
         _whisper_transcriber = nullptr;
     }

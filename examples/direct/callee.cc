@@ -315,14 +315,11 @@ void DirectCallee::OnMessage(rtc::AsyncPacketSocket* socket,
     SendMessage(StatusCodes::kOk);
     graceful_close_in_progress_.store(true);
     ignore_next_close_event_ = true;
-    // Schedule a graceful teardown of the current PeerConnection so that the
-    // callee immediately becomes available for a new incoming call.  We post
-    // this task to the main thread to avoid blocking the network thread that
-    // delivered the BYE packet.
-    main_thread()->PostTask([self = this]() {
+    auto old_socket = std::move(tcp_socket_);
+    main_thread()->PostTask([self = this, s = std::move(old_socket)]() mutable {
       self->ShutdownInternal();
+      s.reset();
     });
-    // Skipping synchronous shutdown for BYE to avoid blocking
   } else if (message.rfind(Msg::kCancel, 0) == 0) {
     RTC_LOG(LS_INFO) << "Received CANCEL from " << remote_addr.ToString()
                      << ". Restarting listener.";

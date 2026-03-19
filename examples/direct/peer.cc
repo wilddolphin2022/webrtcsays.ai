@@ -194,14 +194,14 @@ CreateTalkingFaceVideoSource(DirectPeer* owner) {
 
   face->setOutputSize(640, 480);
 
+  static TalkingFaceRenderer* s_renderer = nullptr;  // NOLINT
+  if (s_renderer) { s_renderer->Stop(); delete s_renderer; }
+
   auto track_source = FakeVideoTrackSource::Create(false);
   track_source->SetState(MediaSourceInterface::kLive);
 
-  auto* renderer = new TalkingFaceRenderer(track_source, face, 24);
-  renderer->Start();
-
-  // renderer leaked intentionally; lives for the process lifetime
-  (void)renderer;
+  s_renderer = new TalkingFaceRenderer(track_source, face, 24);
+  s_renderer->Start();
 
   RTC_LOG(LS_INFO) << "TalkingFace video source created (640x480@24fps)";
   return track_source;
