@@ -23,18 +23,6 @@ on:
         description: "Whillats branch to build on remote"
         required: false
         default: "talkingface3"
-      enable_signal_bridge:
-        description: "Install and run signal.php -> directcall bridge"
-        required: false
-        default: "false"
-      bridge_room:
-        description: "Bridge room name used by HTTPS demo"
-        required: false
-        default: "testroom"
-      signal_base_url:
-        description: "Public signal.php URL used by browser demo"
-        required: false
-        default: "https://www.wilddolphin.us/signal.php"
 
 jobs:
   deploy:

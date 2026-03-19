@@ -6,7 +6,7 @@ on:
       git_ref:
         description: "Branch/tag/SHA to deploy"
         required: false
-        default: "talkingface"
+        default: "talkingface3"
       deploy_path:
         description: "Target path on remote host"
         required: false
@@ -19,18 +19,10 @@ on:
         description: "Repo config JSON path (used if secret missing)"
         required: false
         default: "scripts/deploy/directcall.config.example.json"
-      enable_signal_bridge:
-        description: "Install and run signal.php -> directcall bridge"
+      whillats_branch:
+        description: "Whillats branch to build on remote"
         required: false
-        default: "true"
-      bridge_room:
-        description: "Bridge room name used by HTTPS demo"
-        required: false
-        default: "testroom"
-      signal_base_url:
-        description: "Public signal.php URL used by browser demo"
-        required: false
-        default: "https://www.wilddolphin.us/signal.php"
+        default: "talkingface3"
 
 jobs:
   deploy:
@@ -81,11 +73,9 @@ jobs:
           DEPLOY_PATH: ${{ inputs.deploy_path }}
           SERVICE_NAME: ${{ inputs.service_name }}
           SSH_KEY_PATH: ~/.ssh/id_wd2025
-          ENABLE_SIGNAL_BRIDGE: ${{ inputs.enable_signal_bridge }}
-          BRIDGE_ROOM: ${{ inputs.bridge_room }}
-          SIGNAL_BASE_URL: ${{ inputs.signal_base_url }}
-          SKIP_COTURN: "true"
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          WHILLATS_BRANCH: ${{ inputs.whillats_branch }}
+          SKIP_COTURN: "true"
         run: |
           chmod +x scripts/deploy/deploy_directcall_remote.sh
           scripts/deploy/deploy_directcall_remote.sh dist/directcall-linux.tar.gz dist/directcall-config.json
