@@ -353,7 +353,6 @@ bool WhisperAudioDevice::RecThreadProcess() {
   if (!_recording) {
     return false;
   }
-
   int64_t currentTime = rtc::TimeMillis();
   mutex_.Lock();
 
@@ -559,6 +558,10 @@ bool WhisperAudioDevice::PlayoutIsInitialized() const {
 int32_t WhisperAudioDevice::StartPlayout() {
   if (_playing) {
     return 0;
+  }
+
+  if (!_tts) {
+    InitPlayout();
   }
 
   _playing = true;
