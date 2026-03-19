@@ -1048,7 +1048,8 @@ void DirectApplication::OnAddTrack(rtc::scoped_refptr<webrtc::RtpReceiverInterfa
                 RTC_LOG(LS_INFO) << "Creating EchoVideoTrackSource and outgoing track to echo remote video.";
                 auto echo_source = rtc::make_ref_counted<webrtc::EchoVideoTrackSource>();
                 // Register echo_source as sink to remote video track
-                video_track->AddOrUpdateSink(echo_source.get(), rtc::VideoSinkWants());
+                // echo sink disabled: dangling pointer causes SEGV in IncomingVideoStream
+                // video_track->AddOrUpdateSink(echo_source.get(), rtc::VideoSinkWants());
 
                 // Set as our local video source and add outgoing track
                 SetVideoSource(echo_source);
@@ -1057,7 +1058,8 @@ void DirectApplication::OnAddTrack(rtc::scoped_refptr<webrtc::RtpReceiverInterfa
                 // for echoing the remote video back, without touching the existing
                 // local video_source_ (which may be camera etc.).
                 auto echo_source = rtc::make_ref_counted<webrtc::EchoVideoTrackSource>();
-                video_track->AddOrUpdateSink(echo_source.get(), rtc::VideoSinkWants());
+                // echo sink disabled: dangling pointer causes SEGV in IncomingVideoStream
+                // video_track->AddOrUpdateSink(echo_source.get(), rtc::VideoSinkWants());
                 // Optionally store echo_source if you want to keep it alive explicitly,
                 // but since AddOrUpdateSink doesn't retain it, we need to hold the ref.
                 echo_sources_.push_back(echo_source);  // Add vector<scoped_refptr<EchoVideoTrackSource>> echo_sources_ to class
