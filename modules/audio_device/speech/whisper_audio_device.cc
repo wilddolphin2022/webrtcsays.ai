@@ -17,10 +17,10 @@
 #include <filesystem>
 #include <memory>
 #include <cstring>
-#include <algorithm>  // for std::find_if
-#include <cctype>     // for std::isspace
-#include <mutex>      // for std::mutex, lock_guard
-#include <queue>      // for std::queue
+#include <algorithm>
+#include <cctype>
+#include <mutex>
+#include <queue>
 
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
@@ -347,7 +347,6 @@ void WhisperAudioDevice::SetTTSBuffer(const uint16_t* buffer, size_t buffer_size
 
     RTC_LOG(LS_INFO) << "[PLAY] TTS buffer updated, new size: " << _ttsBuffer.size();
 
-    // Removed buffer_cv.notify_one() as it's not used and tied to a different mutex
 }
 
 bool WhisperAudioDevice::RecThreadProcess() {

@@ -379,6 +379,12 @@ void DirectPeer::Start() {
 
     if (is_caller()) {
         cricket::AudioOptions audio_options;
+        if (opts_.llama) {
+            audio_options.echo_cancellation = false;
+            audio_options.auto_gain_control = false;
+            audio_options.noise_suppression = false;
+            audio_options.highpass_filter = false;
+        }
 
         auto audio_source = peer_connection_factory_->CreateAudioSource(audio_options);
         RTC_DCHECK(audio_source.get());
@@ -764,6 +770,12 @@ void DirectPeer::SetRemoteDescription(const std::string& sdp) {
                     // SetLocalDescription fail.
 
                     cricket::AudioOptions audio_options;
+                    if (opts_.llama) {
+                        audio_options.echo_cancellation = false;
+                        audio_options.auto_gain_control = false;
+                        audio_options.noise_suppression = false;
+                        audio_options.highpass_filter = false;
+                    }
                     auto audio_source = peer_connection_factory_->CreateAudioSource(audio_options);
                     RTC_DCHECK(audio_source.get());
 
