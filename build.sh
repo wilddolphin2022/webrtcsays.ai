@@ -523,6 +523,18 @@ if [ $# -ge 1 ]; then
         echo "  $0 ios whillats             # iOS debug with whillats"
         echo "  $0 ios debug whillats       # iOS debug with whillats"
         echo "  $0 ios release whillats     # iOS release with whillats"
+        echo ""
+        echo "Notes:"
+        echo "  • Always runs from the script’s repo root (dirname of build.sh), not your current directory."
+        echo "  • Writes .gclient, runs gclient sync when src/ is missing or incomplete; checkout + build use src/."
+        echo "  • Removes untracked gclient “spill” dirs at repo root (api/, third_party/, out/, …) if git does not"
+        echo "    track files under them — avoids duplicate trees next to src/. Tracked dirs are never deleted."
+        echo "  • BUILD_RM_ROOT_CIPD=1 deletes root .cipd (large; re-fetched on next sync)."
+        echo "  • Prefers Python 3.12 or 3.11 for depot_tools; warns on newer Python."
+        echo "  • Whillats CMake uses a clean build/ each time (no cmake --fresh; works on CMake < 3.24)."
+        echo "  • Host binary: src/out/<debug|release>/directcall — on success, runs directcall --help (not on iOS)."
+        echo "  • If cert.pem/key.pem are missing under src/ after build, self-signed certs are generated there."
+        echo "  • last_build_commit.txt at repo root records the outer-repo commit used for the last completed build."
         exit 1
     fi
 fi
