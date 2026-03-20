@@ -5,7 +5,7 @@ To clone the repository and build the project, run:
 ```bash
 git clone https://github.com/wilddolphin2025/webrtcsays.ai webrtcsays.ai
 cd webrtcsays.ai
-git checkout develop
+git checkout talkingface   # primary development branch (also: develop, main, …)
 # Build (choose one of the following):
 ./build.sh release
 ./build.sh debug
@@ -45,12 +45,23 @@ All builds are managed by the `build.sh` script in the project root. The script 
 - Generate self-signed certificates if needed
 
 ### Usage
-```bash
-./build.sh [debug|release] [whillats]
+```text
+./build.sh [-b REF | --branch REF | --branch=REF] [--whillats-accel MODE] [debug|release|ios] [whillats]
 ```
-- `debug` (default): Build with debug symbols and no optimizations
-- `release`: Build with optimizations for production
-- `whillats`: Enable advanced AI capabilities with Whisper + LLaMA + TTS integration (includes speech functionality)
+
+| Argument / env | Purpose |
+|----------------|---------|
+| `debug` / `release` | Debug symbols vs optimized build (default if omitted: `debug` for host). |
+| `ios` | iOS build; optional second arg `debug` or `release`. |
+| `whillats` | Enable Whisper + LLaMA + TTS (whillats) in-tree; **host whillats GGML backend is CPU by default** (see below). |
+| `-b REF`, `--branch REF`, `--branch=REF` | Git ref for the **`src/`** checkout only; outer clone branch unchanged. |
+| `SRC_BRANCH=REF` | Same as `-b` if no flag on the command line. |
+| `--whillats-accel MODE` | `cpu` (default) · `cuda` · `metal` (macOS) · `auto` (legacy: Metal on mac, else CUDA if `nvcc`). |
+| `WHILLATS_ACCEL` | Same as `--whillats-accel` when unset on the CLI. |
+| `WHILLATS_CUDA_ARCH` | Optional for `cuda` / `auto` CUDA path, e.g. `80-real` (avoids relying on `nvidia-smi`). |
+| `BUILD_RM_ROOT_CIPD=1` | Delete repo-root `.cipd` before sync (large; re-downloaded next sync). |
+
+Run `./build.sh` with an invalid first token (e.g. `./build.sh help`) to print the full in-script usage and **Notes**.
 
 #### Examples
 - **Debug build (default):**
@@ -63,26 +74,47 @@ All builds are managed by the `build.sh` script in the project root. The script 
   ```bash
   ./build.sh release
   ```
-- **Debug build with whillats:**
+- **Debug build with whillats (CPU GGML, default):**
   ```bash
   ./build.sh debug whillats
   ```
-- **Release build with whillats:**
+- **Release with whillats on CUDA:**
   ```bash
-  ./build.sh release whillats
+  WHILLATS_ACCEL=cuda ./build.sh release whillats
+  # or
+  ./build.sh --whillats-accel=cuda release whillats
+  ```
+- **macOS Metal for whillats:**
+  ```bash
+  ./build.sh --whillats-accel=metal release whillats
+  # or legacy auto-detect:
+  WHILLATS_ACCEL=auto ./build.sh release whillats
+  ```
+- **Explicit `src/` ref (e.g. CI or pinned branch):**
+  ```bash
+  ./build.sh -b talkingface release whillats
   ```
 - **Release iOS build with whillats:**
   ```bash
   ./build.sh ios release whillats
   ```
-- **Debug iOS build no whillats:**
+- **Debug iOS build without whillats:**
   ```bash
   ./build.sh ios debug
   ```
 
 ### What do the AI options do?
-- **`whillats`**: Enables advanced AI capabilities including both Whisper (speech-to-text) and LLaMA (language model) integration. This builds the complete AI pipeline with GPU acceleration support when available.
-- If omitted, the build uses standard audio devices without AI features.
+- **`whillats`**: Enables Whisper, LLaMA, and TTS integration built in-tree. The **WebRTC** side links against whillats headers/libs; **GGML** acceleration for whillats itself is **CPU unless** you set `WHILLATS_ACCEL` / `--whillats-accel` to `cuda`, `metal`, or `auto`.
+- If `whillats` is omitted, the build uses standard audio devices without that AI stack.
+
+### build.sh behavior (notes)
+- **Working directory:** The script **`cd`s to the directory that contains `build.sh`** (repo root), not your current shell directory.
+- **Layout:** Writes `.gclient` and runs **`gclient sync`** when `src/` is missing or incomplete; checkout and **GN/ninja** build use **`src/`**.
+- **Root cleanup:** Removes **untracked** gclient “spill” directories at the repo root (`api/`, `third_party/`, `out/`, …) when **git does not track** files under them—so you do not keep a duplicate WebRTC tree next to `src/`. **Tracked** trees are never deleted.
+- **Python:** Prefers **3.12** or **3.11** for depot_tools; warns on newer Python.
+- **Whillats CMake:** Uses a clean `build/` directory each time; does **not** use `cmake --fresh` (works on **CMake before 3.24**, e.g. Ubuntu 22.04).
+- **After a successful host build:** Runs **`directcall --help`** (skipped for iOS).
+- **`last_build_commit.txt`:** Written at the **repo root** after a completed build, recording the **outer** repo commit that was built.
 
 ---
 
@@ -91,11 +123,12 @@ All builds are managed by the `build.sh` script in the project root. The script 
 - On ARM64 (aarch64), the script uses the system Clang and may build additional runtime libraries if missing.
 - On x86_64, standard Chromium sysroots and toolchains are used.
 
-### GPU Acceleration (CUDA)
-- **CUDA Support**: The build system automatically detects NVIDIA CUDA and attempts to enable GPU acceleration for Whisper and LLaMA models.
-- **Current Status**: Due to compatibility issues between CUDA 12.8 and glibc 2.41, the build currently uses **CPU-only mode** for maximum stability.
-- **Performance**: CPU-only mode with OpenMP provides excellent performance for real-time speech processing.
-- **Future CUDA**: Your RTX GPU is ready for CUDA when compatibility issues are resolved. See [CUDA.md](CUDA.md) for technical details and solutions.
+### GPU acceleration (whillats / GGML)
+- **Default:** **`WHILLATS_ACCEL=cpu`** — whillats builds **CPU-only** (no implicit CUDA even if `nvcc` is installed). Good for CI, laptops, and stable smoke builds.
+- **CUDA:** Set **`WHILLATS_ACCEL=cuda`** (and ensure **`nvcc`** is on `PATH`). Optionally set **`WHILLATS_CUDA_ARCH`** (e.g. `80-real`) for a fixed architecture.
+- **Metal (macOS):** **`WHILLATS_ACCEL=metal`**.
+- **Legacy behavior:** **`WHILLATS_ACCEL=auto`** — Metal on macOS, else CUDA if `nvcc` exists, else CPU.
+- **System / toolchain issues:** See [CUDA.md](CUDA.md) for CUDA versions, glibc, and troubleshooting.
 
 ---
 
@@ -205,15 +238,16 @@ Adjust these fields as needed for your deployment and use case.
 ## Troubleshooting
 - If you encounter missing dependencies, ensure all prerequisites are installed.
 - For Linux/ARM64, the script will attempt to build missing runtime libraries if needed.
-- If the build fails, check the output for error messages and ensure you are on the correct branch (`develop`).
-- **CUDA Issues**: If you see CUDA-related build errors, refer to [CUDA.md](CUDA.md) for detailed troubleshooting and compatibility information.
-- **Math Function Errors**: Conflicts between CUDA 12.8 and glibc 2.41 are automatically handled by falling back to CPU-only mode.
+- If the build fails, check the log and branch: use **`talkingface`** (or the branch you intend); run **`./build.sh help`** for usage.
+- **`CMake Error: Unknown argument --fresh`:** Use a **`build.sh`** that includes the fix (no `--fresh`); upgrade CMake to 3.24+ if you use `--fresh` elsewhere.
+- **CUDA / whillats:** Use **`WHILLATS_ACCEL=cuda`** only when you want GPU; default **CPU** avoids accidental heavy CUDA builds. See [CUDA.md](CUDA.md).
+- **Disk space:** Full **`gclient sync`** + whillats + WebRTC needs many GB; free space or set **`BUILD_RM_ROOT_CIPD=1`** if you need to reclaim `.cipd`.
 
 ---
 
 ## Advanced
-- The script stores the last built commit in `last_build_commit.txt` to avoid unnecessary rebuilds.
-- You can manually clean the build output by deleting the `src/out/` directory.
+- **`last_build_commit.txt`** at the repo root records the outer-repo commit after a **completed** build (used to reason about incremental rebuilds).
+- Manually clean outputs: delete **`src/out/`** (and whillats **`src/modules/third_party/whillats/build`** if rebuilding whillats).
 
 ---
 
