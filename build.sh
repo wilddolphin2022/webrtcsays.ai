@@ -442,7 +442,7 @@ if [ $# -ge 1 ]; then
         echo "  $0 [-b REF] ios [debug|release] [whillats]"
         echo ""
         echo "Examples:"
-        echo "  $0 -b talkingface3 release whillats"
+        echo "  $0 -b talkingface release whillats"
         echo "  $0 debug whillats           # Host debug with whillats"
         echo "  $0 release whillats         # Host release with whillats"
         echo "  $0 ios whillats             # iOS debug with whillats"

@@ -309,7 +309,7 @@ PY
   echo "[build] normalized compiler config aliases for standalone CI"
 fi
 
-# talkingface3: whillats client is compiled in-tree by GN.
+# talkingface: whillats client is compiled in-tree by GN.
 # whillats_server is built separately on the deploy target.
 # We only need the whillats source tree present for GN to find headers.
 echo "[build] whillats client will be compiled in-tree by GN (no libwhillats.so needed)"

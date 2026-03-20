@@ -20,7 +20,7 @@ CALLEE_ROOM="${CALLEE_ROOM:-room101}"
 MODELS_PATH="${MODELS_PATH:-/opt/models}"
 HF_TOKEN="${HF_TOKEN:-}"
 SKIP_COTURN="${SKIP_COTURN:-true}"
-WHILLATS_BRANCH="${WHILLATS_BRANCH:-talkingface3}"
+WHILLATS_BRANCH="${WHILLATS_BRANCH:-talkingface}"
 WHILLATS_DIR_REMOTE="/opt/whillats3"
 WHISPER_MODEL_URL="${WHISPER_MODEL_URL:-https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin}"
 WHISPER_MODEL_FILE="${WHISPER_MODEL_FILE:-ggml-base.bin}"
@@ -134,7 +134,7 @@ fi
 echo "[deploy] Writing systemd unit for ${SERVICE_NAME}"
 ssh "${SSH_OPTS[@]}" "${REMOTE}" "cat > /etc/systemd/system/${SERVICE_NAME}.service <<EOF
 [Unit]
-Description=DirectCall3 WebRTC callee (talkingface3)
+Description=DirectCall3 WebRTC callee (talkingface)
 After=network-online.target
 Wants=network-online.target
 
