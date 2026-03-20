@@ -395,9 +395,10 @@ build_whillats() {
     fi
 
     echo "[build-whillats] Configuring CMake ($CMAKE_BUILD_TYPE) with GPU flags: $GPU_FLAGS"
-    timeout 600 cmake -S . -B build -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE $GPU_FLAGS --fresh || {
+    # No --fresh: requires CMake 3.24+; build/ is removed above so configure is always clean.
+    timeout 600 cmake -S . -B build -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE $GPU_FLAGS || {
         echo "[build-whillats] CMake configuration failed. Retrying with verbose output..."
-        cmake -S . -B build -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE $GPU_FLAGS --fresh -DCMAKE_VERBOSE_MAKEFILE=ON
+        cmake -S . -B build -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE $GPU_FLAGS -DCMAKE_VERBOSE_MAKEFILE=ON
     }
     echo "[build-whillats] Building with $PARALLEL_JOBS parallel jobs..."
     cmake --build build --parallel $PARALLEL_JOBS
