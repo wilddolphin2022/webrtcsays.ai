@@ -29,19 +29,35 @@ LLAMA_MODEL_FILE="${LLAMA_MODEL_FILE:-Qwen2.5-1.5B-Instruct-Q4_K_M.gguf}"
 PIPER_MODEL_URL="${PIPER_MODEL_URL:-https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/low/en_US-lessac-low.onnx}"
 PIPER_MODEL_JSON_URL="${PIPER_MODEL_JSON_URL:-https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/low/en_US-lessac-low.onnx.json}"
 PIPER_MODEL_FILE="${PIPER_MODEL_FILE:-en_US-lessac-low.onnx}"
+DEPLOY_DRY_RUN="${DEPLOY_DRY_RUN:-false}"
+
+deploy_dry_run() {
+  case "${DEPLOY_DRY_RUN}" in
+    true|1|yes|TRUE|YES) return 0 ;;
+    *) return 1 ;;
+  esac
+}
 
 if [ ! -f "${ARTIFACT_PATH}" ]; then
   echo "Artifact not found: ${ARTIFACT_PATH}"
   exit 1
 fi
 
-if [ ! -f "${SSH_KEY_PATH}" ]; then
-  echo "SSH key not found: ${SSH_KEY_PATH}"
+if [ ! -f "${CONFIG_PATH}" ]; then
+  echo "Config not found: ${CONFIG_PATH}"
   exit 1
 fi
 
-if [ ! -f "${CONFIG_PATH}" ]; then
-  echo "Config not found: ${CONFIG_PATH}"
+if deploy_dry_run; then
+  echo "[deploy] DRY RUN: build artifact validated; skipping SSH — remote host and binaries are unchanged."
+  echo "[deploy] Artifact: ${ARTIFACT_PATH} ($(wc -c < "${ARTIFACT_PATH}") bytes)"
+  echo "[deploy] Would deploy to: ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH} (service ${SERVICE_NAME})"
+  ls -la "${ARTIFACT_PATH}" "${CONFIG_PATH}"
+  exit 0
+fi
+
+if [ ! -f "${SSH_KEY_PATH}" ]; then
+  echo "SSH key not found: ${SSH_KEY_PATH}"
   exit 1
 fi
 

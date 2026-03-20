@@ -23,6 +23,11 @@ on:
         description: "Whillats branch to build on remote"
         required: false
         default: "talkingface"
+      dry_run:
+        description: "If true, build and validate artifact only — no SSH, remote binaries unchanged"
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   deploy:
@@ -41,6 +46,7 @@ jobs:
           scripts/ci/build_directcall_linux.sh
 
       - name: Prepare SSH key
+        if: ${{ !inputs.dry_run }}
         run: |
           install -m 700 -d ~/.ssh
           printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY_GPU }}" > ~/.ssh/id_wd2025
@@ -65,8 +71,9 @@ jobs:
             exit 1
           fi
 
-      - name: Deploy to remote host
+      - name: Deploy to remote host (or dry-run validate only)
         env:
+          DEPLOY_DRY_RUN: ${{ inputs.dry_run }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST_GPU }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER_GPU }}
           DEPLOY_PORT: 22
@@ -79,3 +86,10 @@ jobs:
         run: |
           chmod +x scripts/deploy/deploy_directcall_remote.sh
           scripts/deploy/deploy_directcall_remote.sh dist/directcall-linux.tar.gz dist/directcall-config.json
+
+      - name: Upload package artifact (dry run)
+        if: ${{ inputs.dry_run }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: directcall-linux-dry-run-gpu
+          path: dist/directcall-linux.tar.gz
