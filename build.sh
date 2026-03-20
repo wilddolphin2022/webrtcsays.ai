@@ -9,7 +9,9 @@ cd "$REPO_ROOT"
 
 # Pull out -b / --branch (and optional --branch=ref) so remaining args match the
 # build-type parser below. Outer repo still follows its current branch; src/ uses SRC_GIT_REF.
+# Optional --whillats-accel overrides env WHILLATS_ACCEL for whillats (GGML) backend.
 SRC_BRANCH_OVERRIDE=""
+WHILLATS_ACCEL_CLI=""
 EARLY_ARGS=()
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -25,6 +27,22 @@ while [ $# -gt 0 ]; do
       SRC_BRANCH_OVERRIDE="${1#*=}"
       if [ -z "$SRC_BRANCH_OVERRIDE" ]; then
         echo "ERROR: --branch= requires a non-empty ref"
+        exit 1
+      fi
+      shift
+      ;;
+    --whillats-accel)
+      if [ -z "${2:-}" ]; then
+        echo "ERROR: --whillats-accel requires a value: cpu, cuda, metal, or auto"
+        exit 1
+      fi
+      WHILLATS_ACCEL_CLI="$2"
+      shift 2
+      ;;
+    --whillats-accel=*)
+      WHILLATS_ACCEL_CLI="${1#*=}"
+      if [ -z "$WHILLATS_ACCEL_CLI" ]; then
+        echo "ERROR: --whillats-accel= requires a non-empty value"
         exit 1
       fi
       shift
@@ -331,24 +349,73 @@ build_whillats() {
 
     pushd "$WHILLATS_DIR"
 
-    # --- GPU backend detection: Metal on macOS, CUDA on Linux ---
+    # --- Whillats GGML backend: default CPU; opt into CUDA or Metal ---
+    # WHILLATS_ACCEL: cpu (default), cuda, metal (macOS), auto (legacy: Metal on mac, else CUDA if nvcc)
+    # Optional: WHILLATS_CUDA_ARCH for cuda (e.g. 80-real); else use nvidia-smi compute_cap when available.
+    local_accel="${WHILLATS_ACCEL_CLI:-${WHILLATS_ACCEL:-cpu}}"
+    local_accel="$(printf '%s' "$local_accel" | tr '[:upper:]' '[:lower:]')"
     GPU_FLAGS=""
-    
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        echo "[build-whillats] macOS detected, enabling Metal GPU acceleration"
-        GPU_FLAGS="-DGGML_METAL=ON -DGGML_CUDA=OFF"
-    elif command -v nvcc >/dev/null 2>&1; then
-        echo "[build-whillats] NVCC found, enabling CUDA GPU acceleration"
-        GPU_FLAGS="-DGGML_METAL=OFF -DGGML_CUDA=ON"
-        NATIVE_ARCH=$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null | head -1 | tr -d '.')
-        if [ -n "$NATIVE_ARCH" ]; then
-            echo "[build-whillats] Detected native CUDA architecture: sm_${NATIVE_ARCH}"
-            GPU_FLAGS="$GPU_FLAGS -DCMAKE_CUDA_ARCHITECTURES=${NATIVE_ARCH}-real"
-        fi
-    else
-        echo "[build-whillats] No GPU acceleration available, building CPU-only"
+    case "$local_accel" in
+      cpu)
+        echo "[build-whillats] WHILLATS_ACCEL=cpu (default): CPU-only (no Metal, no CUDA)"
         GPU_FLAGS="-DGGML_METAL=OFF -DGGML_CUDA=OFF"
-    fi
+        ;;
+      cuda)
+        if ! command -v nvcc >/dev/null 2>&1; then
+            echo "ERROR: WHILLATS_ACCEL=cuda but nvcc not found in PATH"
+            exit 1
+        fi
+        echo "[build-whillats] WHILLATS_ACCEL=cuda: enabling CUDA"
+        GPU_FLAGS="-DGGML_METAL=OFF -DGGML_CUDA=ON"
+        if [ -n "${WHILLATS_CUDA_ARCH:-}" ]; then
+            echo "[build-whillats] Using WHILLATS_CUDA_ARCH=${WHILLATS_CUDA_ARCH}"
+            GPU_FLAGS="$GPU_FLAGS -DCMAKE_CUDA_ARCHITECTURES=${WHILLATS_CUDA_ARCH}"
+        else
+            NATIVE_ARCH=$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null | head -1 | tr -d '.')
+            if [ -n "$NATIVE_ARCH" ]; then
+                echo "[build-whillats] Detected native CUDA architecture: sm_${NATIVE_ARCH}"
+                GPU_FLAGS="$GPU_FLAGS -DCMAKE_CUDA_ARCHITECTURES=${NATIVE_ARCH}-real"
+            else
+                echo "[build-whillats] WARNING: nvidia-smi not available; omitting CMAKE_CUDA_ARCHITECTURES (toolkit default)"
+            fi
+        fi
+        ;;
+      metal)
+        if [[ "$OSTYPE" != "darwin"* ]]; then
+            echo "[build-whillats] WARNING: WHILLATS_ACCEL=metal on non-macOS; using CPU-only"
+            GPU_FLAGS="-DGGML_METAL=OFF -DGGML_CUDA=OFF"
+        else
+            echo "[build-whillats] WHILLATS_ACCEL=metal: enabling Metal"
+            GPU_FLAGS="-DGGML_METAL=ON -DGGML_CUDA=OFF"
+        fi
+        ;;
+      auto)
+        echo "[build-whillats] WHILLATS_ACCEL=auto: legacy detection (Metal on macOS, else CUDA if nvcc, else CPU)"
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            echo "[build-whillats] macOS: Metal on"
+            GPU_FLAGS="-DGGML_METAL=ON -DGGML_CUDA=OFF"
+        elif command -v nvcc >/dev/null 2>&1; then
+            echo "[build-whillats] NVCC found: CUDA on"
+            GPU_FLAGS="-DGGML_METAL=OFF -DGGML_CUDA=ON"
+            if [ -n "${WHILLATS_CUDA_ARCH:-}" ]; then
+                GPU_FLAGS="$GPU_FLAGS -DCMAKE_CUDA_ARCHITECTURES=${WHILLATS_CUDA_ARCH}"
+            else
+                NATIVE_ARCH=$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null | head -1 | tr -d '.')
+                if [ -n "$NATIVE_ARCH" ]; then
+                    echo "[build-whillats] Detected native CUDA architecture: sm_${NATIVE_ARCH}"
+                    GPU_FLAGS="$GPU_FLAGS -DCMAKE_CUDA_ARCHITECTURES=${NATIVE_ARCH}-real"
+                fi
+            fi
+        else
+            echo "[build-whillats] No GPU toolchain: CPU-only"
+            GPU_FLAGS="-DGGML_METAL=OFF -DGGML_CUDA=OFF"
+        fi
+        ;;
+      *)
+        echo "ERROR: Unknown WHILLATS_ACCEL='$local_accel' (use cpu, cuda, metal, or auto)"
+        exit 1
+        ;;
+    esac
     # Check available disk space and memory before building
     AVAILABLE_SPACE=$(df . | tail -1 | awk '{print $4}')
     echo "[build-whillats] Available disk space: ${AVAILABLE_SPACE}KB"
@@ -431,6 +498,11 @@ if [ $# -ge 1 ]; then
         echo "  --branch=REF           Same as --branch"
         echo "  Env SRC_BRANCH=REF     Same if no -b/--branch on the command line"
         echo ""
+        echo "Whillats GGML backend (host builds only; default is CPU):"
+        echo "  --whillats-accel MODE   cpu | cuda | metal | auto (legacy detect)"
+        echo "  Env WHILLATS_ACCEL=MODE Same if no --whillats-accel (default: cpu)"
+        echo "  Env WHILLATS_CUDA_ARCH  Optional for cuda/auto, e.g. 80-real"
+        echo ""
         echo "Build types:"
         echo "  debug       Build debug version for host platform"
         echo "  release     Build release version for host platform" 
@@ -444,6 +516,8 @@ if [ $# -ge 1 ]; then
         echo ""
         echo "Examples:"
         echo "  $0 -b talkingface release whillats"
+        echo "  WHILLATS_ACCEL=cuda $0 release whillats"
+        echo "  $0 --whillats-accel=metal release whillats   # macOS Metal"
         echo "  $0 debug whillats           # Host debug with whillats"
         echo "  $0 release whillats         # Host release with whillats"
         echo "  $0 ios whillats             # iOS debug with whillats"
