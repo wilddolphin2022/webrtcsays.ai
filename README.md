@@ -3,7 +3,7 @@
 ## Getting the Code
 To clone the repository and build the project, run:
 ```bash
-git clone https://github.com/wilddolphin2022/webrtcsays.ai webrtcsays.ai
+git clone https://github.com/wilddolphin2025/webrtcsays.ai webrtcsays.ai
 cd webrtcsays.ai
 git checkout develop
 # Build (choose one of the following):
