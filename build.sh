@@ -3,14 +3,86 @@
 # Exit on any error
 set -e
 
-# Always set repo root ONCE at the top
+# Always set repo root ONCE at the top; all relative paths assume repo root.
 REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
+cd "$REPO_ROOT"
+
+# Pull out -b / --branch (and optional --branch=ref) so remaining args match the
+# build-type parser below. Outer repo still follows its current branch; src/ uses SRC_GIT_REF.
+SRC_BRANCH_OVERRIDE=""
+EARLY_ARGS=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -b|--branch)
+      if [ -z "${2:-}" ]; then
+        echo "ERROR: $1 requires a branch name, tag, or commit"
+        exit 1
+      fi
+      SRC_BRANCH_OVERRIDE="$2"
+      shift 2
+      ;;
+    --branch=*)
+      SRC_BRANCH_OVERRIDE="${1#*=}"
+      if [ -z "$SRC_BRANCH_OVERRIDE" ]; then
+        echo "ERROR: --branch= requires a non-empty ref"
+        exit 1
+      fi
+      shift
+      ;;
+    *)
+      EARLY_ARGS+=("$1")
+      shift
+      ;;
+  esac
+done
+if [ ${#EARLY_ARGS[@]} -gt 0 ]; then
+  set -- "${EARLY_ARGS[@]}"
+else
+  set --
+fi
+
+# WebRTC top-level directories that may appear at the gclient parent alongside
+# `src/` as stray checkouts. Remove only when nothing under them is tracked in
+# git (avoids deleting the real working tree or folders like models/).
+WEBRTC_SPILL_DIRNAMES=(
+  api audio base build build_overrides buildtools call common_audio common_video
+  data docs examples experiments g3doc infra ios logging media modules mojo net
+  p2p pc resources rtc_base rtc_tools sdk stats system_wrappers test testing
+  third_party tools tools_webrtc video out
+)
+
+remove_untracked_webrtc_spill_at_root() {
+  local d tracked
+  for d in "${WEBRTC_SPILL_DIRNAMES[@]}"; do
+    [ -d "$REPO_ROOT/$d" ] || continue
+    tracked="$(git -C "$REPO_ROOT" ls-files -- "$d/" || true)"
+    if [ -n "$tracked" ]; then
+      continue
+    fi
+    echo "Removing untracked WebRTC tree directory at repo root (gclient spill): $d"
+    rm -rf "$REPO_ROOT/$d"
+  done
+}
+
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 CURRENT_SHA=$(git rev-parse HEAD)
 if [ "$CURRENT_BRANCH" = "HEAD" ]; then
   echo "Detached HEAD detected (tag build). Using commit SHA: $CURRENT_SHA"
   CURRENT_BRANCH="$CURRENT_SHA"
 fi
+
+# Ref for src/ and whillats: explicit -b/--branch, else SRC_BRANCH env, else outer branch.
+if [ -n "$SRC_BRANCH_OVERRIDE" ]; then
+  SRC_GIT_REF="$SRC_BRANCH_OVERRIDE"
+elif [ -n "${SRC_BRANCH:-}" ]; then
+  SRC_GIT_REF="$SRC_BRANCH"
+else
+  SRC_GIT_REF="$CURRENT_BRANCH"
+fi
+if [ -n "$SRC_BRANCH_OVERRIDE" ] || [ -n "${SRC_BRANCH:-}" ]; then
+  echo "src (and whillats) will checkout: $SRC_GIT_REF"
+fi
+
 WHILLATS_DIR="$REPO_ROOT/src/modules/third_party/whillats"
 
 # Clean up old directories if they exist, but keep src
@@ -23,7 +95,7 @@ fi
 # Ensure we're on the correct branch/commit
 echo "Switching to $CURRENT_BRANCH..."
 git fetch origin
-git checkout $CURRENT_BRANCH
+git checkout "$CURRENT_BRANCH"
 
 # Verify we're on the correct branch
 echo "Current commit: $(git rev-parse HEAD)"
@@ -98,11 +170,15 @@ else
         echo "ERROR: src/build directory missing or dotfile_settings.gni missing after gclient sync. Check your DEPS file or sync process."
         exit 1
     fi
+fi
 
-    rm -rf ./api ./audio ./build_overrides ./call ./common_audio ./common_video ./data ./docs 
-    rm -rf ./examples ./experiments ./g3doc ./infra ./logging ./media ./modules ./net ./p2p 
-    rm -rf ./pc ./resource ./rtc-base ./rtc-tools ./sdk ./stats ./system-wrappers ./test 
-    rm -rf ./tools ./tools_webrtc ./video 
+# Drop stray duplicate tree at gclient root whether or not we synced this run.
+remove_untracked_webrtc_spill_at_root
+
+# Optional: remove root .cipd cache (large; recreated on next sync). Off by default.
+if [ "${BUILD_RM_ROOT_CIPD:-}" = "1" ] && [ -d "$REPO_ROOT/.cipd" ]; then
+    echo "BUILD_RM_ROOT_CIPD=1: removing $REPO_ROOT/.cipd"
+    rm -rf "$REPO_ROOT/.cipd"
 fi
 
 # Copy .vpython3 to src directory
@@ -112,7 +188,7 @@ cp .vpython3 src/ || { echo "WARNING: .vpython3 not found in root, build may fai
 cd src
 
 git fetch origin
-git checkout $CURRENT_BRANCH
+git checkout "$SRC_GIT_REF"
 
 # Detect platform architecture for sysroot
 ARCH=$(uname -m)
@@ -225,12 +301,12 @@ build_whillats() {
     fi
     
     # Checkout the same branch as the parent repo in the submodule
-    echo "[build-whillats] Checking out branch $CURRENT_BRANCH in whillats submodule"
+    echo "[build-whillats] Checking out ref $SRC_GIT_REF in whillats submodule"
     pushd "$WHILLATS_DIR"
-    if git fetch origin "$CURRENT_BRANCH" 2>/dev/null; then
-        git checkout "$CURRENT_BRANCH" 2>/dev/null || echo "[build-whillats] WARNING: Branch $CURRENT_BRANCH not found in whillats, using current HEAD"
+    if git fetch origin "$SRC_GIT_REF" 2>/dev/null; then
+        git checkout "$SRC_GIT_REF" 2>/dev/null || echo "[build-whillats] WARNING: Ref $SRC_GIT_REF not found in whillats, using current HEAD"
     else
-        echo "[build-whillats] WARNING: Could not fetch $CURRENT_BRANCH from whillats remote, using current HEAD"
+        echo "[build-whillats] WARNING: Could not fetch $SRC_GIT_REF from whillats remote, using current HEAD"
     fi
     popd
 
@@ -347,7 +423,12 @@ if [ $# -ge 1 ]; then
         IOS_BUILD="true"
         BUILD_TYPE="debug"  # Default to debug for iOS, can be overridden
     else
-        echo "Usage: $0 [build_type] [options]"
+        echo "Usage: $0 [-b REF | --branch REF | --branch=REF] [build_type] [options]"
+        echo ""
+        echo "src/ checkout (whillats uses the same ref):"
+        echo "  -b REF, --branch REF   Branch, tag, or commit for src (outer repo unchanged)"
+        echo "  --branch=REF           Same as --branch"
+        echo "  Env SRC_BRANCH=REF     Same if no -b/--branch on the command line"
         echo ""
         echo "Build types:"
         echo "  debug       Build debug version for host platform"
@@ -358,9 +439,10 @@ if [ $# -ge 1 ]; then
         echo "  whillats    Enable whillats speech/AI features"
         echo ""
         echo "iOS-specific usage:"
-        echo "  $0 ios [debug|release] [whillats]"
+        echo "  $0 [-b REF] ios [debug|release] [whillats]"
         echo ""
         echo "Examples:"
+        echo "  $0 -b talkingface3 release whillats"
         echo "  $0 debug whillats           # Host debug with whillats"
         echo "  $0 release whillats         # Host release with whillats"
         echo "  $0 ios whillats             # iOS debug with whillats"
@@ -398,8 +480,8 @@ if [[ "$ENABLE_WHILLATS" == "true" ]]; then
             pushd .
             echo "pwd: $PWD"
             cd $SRC_DIR/modules/third_party/whillats
-            git fetch origin ${CURRENT_BRANCH}
-            git checkout ${CURRENT_BRANCH}
+            git fetch origin "$SRC_GIT_REF"
+            git checkout "$SRC_GIT_REF"
             popd
             git submodule update --init --recursive modules/third_party/whillats
         else
@@ -470,14 +552,9 @@ fi
 if [ -f "$BINARY_PATH" ] && [ -x "$BINARY_PATH" ]; then
     # Test if binary can run (e.g., by checking version or help output)
     if "$BINARY_PATH" --help >/dev/null 2>&1; then
-        echo "Binary at $BINARY_PATH is runnable. Cleaning up directories except src..."
-        cd ..
-        for dir in */ ; do
-            if [ "$dir" != "src/" ]; then
-                echo "Removing $dir..."
-                rm -rf "$dir"
-            fi
-        done
+        echo "Binary at $BINARY_PATH is runnable. Removing any untracked WebRTC spill at repo root..."
+        cd "$REPO_ROOT"
+        remove_untracked_webrtc_spill_at_root
         cd src
     else
         echo "Binary at $BINARY_PATH exists but is not runnable. Skipping cleanup of other directories."
