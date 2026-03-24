@@ -18,7 +18,7 @@ on:
       config_path:
         description: "Repo config JSON path (used if secret missing)"
         required: false
-        default: "scripts/deploy/directcall.config.example.json"
+        default: "scripts/deploy/directcall.config.json"
       whillats_branch:
         description: "Whillats branch to build on remote"
         required: false

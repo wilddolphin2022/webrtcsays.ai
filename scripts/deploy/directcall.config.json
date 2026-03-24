@@ -13,8 +13,8 @@
   "language": "en",
   "whisper_model": "/opt/models/ggml-base.bin",
   "llama_model": "/opt/models/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf",
-  "webrtc_cert_path": "/opt/directcall3/cert.pem",
-  "webrtc_key_path": "/opt/directcall3/key.pem",
+  "webrtc_cert_path": "/opt/directcall/cert.pem",
+  "webrtc_key_path": "/opt/directcall/key.pem",
   "webrtc_speech_initial_playout_wav": "",
   "turns": [
     [
@@ -28,7 +28,7 @@
       "wilddolphin"
     ]
   ],
-  "talking_face": "/opt/directcall3/RobotPhoneLogo.jpeg",
+  "talking_face": "/opt/directcall/RobotPhoneLogo.jpeg",
   "whisper_threads": 4,
   "llama_threads": 6,
   "tts_threads": 2,

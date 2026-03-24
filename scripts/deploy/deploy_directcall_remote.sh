@@ -6,12 +6,12 @@ CONFIG_PATH="${2:-dist/directcall-config.json}"
 DEPLOY_HOST="${DEPLOY_HOST:-217.77.3.65}"
 DEPLOY_USER="${DEPLOY_USER:-root}"
 DEPLOY_PORT="${DEPLOY_PORT:-22}"
-DEPLOY_PATH="${DEPLOY_PATH:-/opt/directcall3}"
-SERVICE_NAME="${SERVICE_NAME:-directcall3}"
+DEPLOY_PATH="${DEPLOY_PATH:-/opt/directcall}"
+SERVICE_NAME="${SERVICE_NAME:-directcall}"
 SSH_KEY_PATH="${SSH_KEY_PATH:-${HOME}/.ssh/id_wd2025}"
 SSH_KEY_PATH="${SSH_KEY_PATH/#\~/$HOME}"
 ENABLE_SIGNAL_BRIDGE="${ENABLE_SIGNAL_BRIDGE:-false}"
-BRIDGE_SERVICE_NAME="${BRIDGE_SERVICE_NAME:-directcall3-bridge}"
+BRIDGE_SERVICE_NAME="${BRIDGE_SERVICE_NAME:-directcall-bridge}"
 SIGNAL_BASE_URL="${SIGNAL_BASE_URL:-https://www.wilddolphin.us/signal.php}"
 BRIDGE_ROOM="${BRIDGE_ROOM:-testroom}"
 CALLEE_HOST="${CALLEE_HOST:-127.0.0.1}"
@@ -64,8 +64,8 @@ fi
 SSH_OPTS=(-i "${SSH_KEY_PATH}" -p "${DEPLOY_PORT}" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null)
 SCP_OPTS=(-i "${SSH_KEY_PATH}" -P "${DEPLOY_PORT}" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null)
 REMOTE="${DEPLOY_USER}@${DEPLOY_HOST}"
-TMP_TAR="/tmp/directcall3-linux.tar.gz"
-TMP_CONFIG="/tmp/directcall3-config.json"
+TMP_TAR="/tmp/directcall-linux.tar.gz"
+TMP_CONFIG="/tmp/directcall-config.json"
 
 run_remote() {
   if [ "${DEPLOY_USER}" = "root" ]; then
@@ -309,7 +309,7 @@ chmod +x '${DEPLOY_PATH}/bridge_signal_tcp.py'"
   echo "[deploy] Writing bridge systemd unit"
   ssh "${SSH_OPTS[@]}" "${REMOTE}" "cat > /etc/systemd/system/${BRIDGE_SERVICE_NAME}.service <<'EOF'
 [Unit]
-Description=Bridge signal.php to directcall3 TCP callee
+Description=Bridge signal.php to directcall TCP callee
 After=network-online.target ${SERVICE_NAME}.service
 Wants=network-online.target
 
@@ -328,7 +328,7 @@ EOF"
   ssh "${SSH_OPTS[@]}" "${REMOTE}" "systemctl daemon-reload && systemctl enable ${BRIDGE_SERVICE_NAME} && systemctl restart ${BRIDGE_SERVICE_NAME} && systemctl --no-pager --full status ${BRIDGE_SERVICE_NAME} | sed -n '1,30p'"
 fi
 
-echo "[deploy] Updating nginx to proxy /ws to directcall3 websocket port (3459)"
+echo "[deploy] Updating nginx to proxy /ws to directcall websocket port (3459)"
 ssh "${SSH_OPTS[@]}" "${REMOTE}" "if [ -f /etc/nginx/sites-enabled/directcall ]; then sed -i 's|proxy_pass http://127.0.0.1:3457;|proxy_pass http://127.0.0.1:3459;|g' /etc/nginx/sites-enabled/directcall && nginx -t && systemctl reload nginx && echo 'nginx updated: /ws -> 3459'; else echo 'nginx config not found at /etc/nginx/sites-enabled/directcall'; fi"
 
 echo "[deploy] Stopping old directcall service (kept installed, not destroyed)"

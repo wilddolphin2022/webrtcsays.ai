@@ -521,9 +521,8 @@ if (rtc_use_speech_audio_devices) {
       "speech/speech_audio_device_factory.h",
       "speech/whisper_audio_device.cc",
       "speech/whisper_audio_device.h",
-      # Thin whillats client (compiled with WebRTC clang/libc++ — same ABI as directcall)
+      # Whillats sources compiled in-tree with WebRTC clang/libc++ (same ABI as directcall)
       "//modules/third_party/whillats/src/whillats.cc",
-      "//modules/third_party/whillats/src/whillats_client.cc",
       "//modules/third_party/whillats/src/talking_face.cc",
       "//modules/third_party/whillats/src/whillats_utils.cc",
       "//modules/third_party/whillats/src/stb_image_impl.c",
@@ -532,9 +531,21 @@ if (rtc_use_speech_audio_devices) {
     include_dirs = [
       "//modules/third_party/whillats/src",
       "//modules/third_party/whillats/third_party/llama.cpp/vendor/stb",
+      "//modules/third_party/whillats/third_party/whisper.cpp/include",
+      "//modules/third_party/whillats/third_party/whisper.cpp/ggml/include",
+      "//modules/third_party/whillats/third_party/llama.cpp/include",
+      "//modules/third_party/whillats/third_party/llama.cpp/ggml/include",
+      "//modules/third_party/whillats/third_party/llama.cpp/tools/mtmd",
+      "//modules/third_party/whillats/third_party/llama.cpp/common",
+      "//modules/third_party/whillats/third_party/llama.cpp/vendor",
+      "//modules/third_party/whillats/third_party/espeak-ng/src/include",
     ]
 
-    cflags += [ "-Wno-incompatible-pointer-types-discards-qualifiers" ] 
+    cflags += [
+      "-Wno-incompatible-pointer-types-discards-qualifiers",
+      # stb_image_impl.c includes vendor stb_image.h (intentional switch fall-through)
+      "-Wno-implicit-fallthrough",
+    ]
     cflags_cc += [ "-Wno-exit-time-destructors", "-Wno-global-constructors" ]
 
     deps = [

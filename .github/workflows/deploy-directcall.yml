@@ -10,15 +10,15 @@ on:
       deploy_path:
         description: "Target path on remote host"
         required: false
-        default: "/opt/directcall3"
+        default: "/opt/directcall"
       service_name:
         description: "systemd service name"
         required: false
-        default: "directcall3"
+        default: "directcall"
       config_path:
         description: "Repo config JSON path (used if secret missing)"
         required: false
-        default: "scripts/deploy/directcall3.config.json"
+        default: "scripts/deploy/directcall.config.json"
       whillats_branch:
         description: "Whillats branch to build on remote"
         required: false
@@ -80,9 +80,6 @@ jobs:
           DEPLOY_PATH: ${{ inputs.deploy_path }}
           SERVICE_NAME: ${{ inputs.service_name }}
           SSH_KEY_PATH: ~/.ssh/id_wd2025
-          ENABLE_SIGNAL_BRIDGE: ${{ inputs.enable_signal_bridge }}
-          BRIDGE_ROOM: ${{ inputs.bridge_room }}
-          SIGNAL_BASE_URL: ${{ inputs.signal_base_url }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           WHILLATS_BRANCH: ${{ inputs.whillats_branch }}
           SKIP_COTURN: "true"

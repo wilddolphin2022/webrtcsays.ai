@@ -150,16 +150,23 @@ else
     echo "Warning: depot_tools may have compatibility issues with Python 3.13+"
 fi
 
-# Check if depot_tools is already available in PATH
-if command -v gclient >/dev/null 2>&1; then
-    echo "depot_tools already available in PATH"
-elif [ -d "$HOME/depot_tools" ]; then
-    PATH="$HOME/depot_tools:$PATH"
-    echo "Added $HOME/depot_tools to PATH (prepended)"
+# Prepend depot_tools when present. Ninja/gn invoke vpython3 from here; if gclient
+# exists elsewhere on PATH we must still prepend or builds fail with "vpython3: not found".
+DEPOT_TOOLS_DIR=""
+if [ -d "$HOME/depot_tools" ]; then
+    DEPOT_TOOLS_DIR="$HOME/depot_tools"
 elif [ -d "$HOME/Public/depot_tools" ]; then
-    PATH="$HOME/Public/depot_tools:$PATH"
-    echo "Added $HOME/Public/depot_tools to PATH (prepended)"
-else
+    DEPOT_TOOLS_DIR="$HOME/Public/depot_tools"
+fi
+if [ -n "$DEPOT_TOOLS_DIR" ]; then
+    case ":$PATH:" in
+        *":$DEPOT_TOOLS_DIR:"*) echo "depot_tools already at front of PATH";;
+        *)
+            PATH="$DEPOT_TOOLS_DIR:$PATH"
+            echo "Prepended $DEPOT_TOOLS_DIR to PATH (gclient, vpython3, gn, ...)"
+            ;;
+    esac
+elif ! command -v gclient >/dev/null 2>&1; then
     echo "depot_tools not found in PATH or expected directories."
     echo "Attempting to install depot_tools..."
     git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git "$HOME/depot_tools"
@@ -170,6 +177,12 @@ else
         echo "ERROR: Failed to install depot_tools. Please install depot_tools manually."
         exit 1
     fi
+fi
+
+if ! command -v vpython3 >/dev/null 2>&1; then
+    echo "ERROR: vpython3 not found. Chromium ninja needs depot_tools on PATH."
+    echo "  export PATH=\"\$HOME/depot_tools:\$PATH\"   # then: cd src && ninja -C out/debug directcall"
+    exit 1
 fi
 
 
@@ -188,6 +201,13 @@ else
         echo "ERROR: src/build directory missing or dotfile_settings.gni missing after gclient sync. Check your DEPS file or sync process."
         exit 1
     fi
+fi
+
+# After sync, drop previous Chromium ninja output under src/ (often tens of GB). gn/ninja
+# recreates out/. Set BUILD_KEEP_SRC_OUT=1 to preserve an existing src/out tree.
+if [ "${BUILD_KEEP_SRC_OUT:-}" != "1" ] && [ -d "$REPO_ROOT/src/out" ]; then
+    echo "Removing $REPO_ROOT/src/out (previous build output) to free disk space before configuring..."
+    rm -rf "$REPO_ROOT/src/out"
 fi
 
 # Drop stray duplicate tree at gclient root whether or not we synced this run.
@@ -530,7 +550,9 @@ if [ $# -ge 1 ]; then
         echo "  • Removes untracked gclient “spill” dirs at repo root (api/, third_party/, out/, …) if git does not"
         echo "    track files under them — avoids duplicate trees next to src/. Tracked dirs are never deleted."
         echo "  • BUILD_RM_ROOT_CIPD=1 deletes root .cipd (large; re-fetched on next sync)."
+        echo "  • BUILD_KEEP_SRC_OUT=1 keeps src/out across runs (default: remove src/out after sync for disk space)."
         echo "  • Prefers Python 3.12 or 3.11 for depot_tools; warns on newer Python."
+        echo "  • Manual ninja: export PATH=\"\$HOME/depot_tools:\$PATH\" so vpython3 is found."
         echo "  • Whillats CMake uses a clean build/ each time (no cmake --fresh; works on CMake < 3.24)."
         echo "  • Host binary: src/out/<debug|release>/directcall — on success, runs directcall --help (not on iOS)."
         echo "  • If cert.pem/key.pem are missing under src/ after build, self-signed certs are generated there."
