@@ -399,23 +399,21 @@ void DirectApplication::Disconnect() {
 
   RTC_LOG(LS_INFO) << "Disconnected, ready for reconnection";
 
-  // --- NEW BLOCK ---------------------------------------------------------
-  if (audio_device_module_) {
+  // --- ADM teardown (synchronous on worker thread) ----------------------
+  if (audio_device_module_ && worker_thread()) {
     RTC_LOG(LS_INFO) << "Disconnect(): terminating and releasing ADM";
-    // All ADM calls must happen on the same thread where the ADM was created
-    // (our dedicated worker thread) otherwise WebRTC will DCHECK like:
-    //   "TaskQueue doesn't match".
-    worker_thread()->PostTask([this]() {
-      if (!audio_device_module_) {
-        return; // Already nulled from another path.
-      }
-      // Stop audio operations before termination to ensure no pending tasks
+    auto adm_teardown = [this]() {
+      if (!audio_device_module_) return;
       audio_device_module_->StopPlayout();
       audio_device_module_->StopRecording();
       audio_device_module_->Terminate();
       audio_device_module_ = nullptr;
       dependencies_.adm   = nullptr;
-    });
+    };
+    if (worker_thread()->IsCurrent())
+      adm_teardown();
+    else
+      worker_thread()->BlockingCall(adm_teardown);
   }
   // -----------------------------------------------------------------------
 }
@@ -606,40 +604,29 @@ bool DirectApplication::CreatePeerConnection() {
   // Create the audio device module on the worker thread so its lifecycle runs there.
   rtc::Event adm_created;
   dependencies_.worker_thread->PostTask([this, kAudioDeviceModuleType, task_queue_factory_ptr, &adm_created]() {
-    // Reset PCF and ADM references on worker thread for correct destruction.
-    peer_connection_factory_ = nullptr;
-    dependencies_.adm = nullptr;
-    audio_device_module_ = nullptr;
-    audio_device_module_ = webrtc::AudioDeviceModule::Create(
-        kAudioDeviceModuleType,
-        task_queue_factory_ptr);
-    if (audio_device_module_) {
-      RTC_LOG(LS_INFO) << "Audio device module created successfully on thread: "
-                       << rtc::Thread::Current();
-
-      // Attempt to initialize the ADM.  On head-less Linux servers PulseAudio
-      // often isn't available which causes Init() to fail and WebRTC will
-      // crash later when the voice engine asserts.  Detect this early and
-      // transparently fall back to the dummy (no-audio) implementation so
-      // that signalling and video can still work.
-      int init_res = audio_device_module_->Init();
-      if (init_res != 0) {
-        RTC_LOG(LS_ERROR) << "Audio device module Init failed (" << init_res
-                          << "), switching to DummyAudio layer";
-
-        // Replace with dummy ADM – ignore return value, we tried our best.
-        audio_device_module_ = webrtc::AudioDeviceModule::Create(
-            webrtc::AudioDeviceModule::kDummyAudio,
-            task_queue_factory_ptr);
-        if (audio_device_module_) {
-          audio_device_module_->Init();
-          RTC_LOG(LS_INFO) << "Dummy audio device module created and initialized";
-        } else {
-          RTC_LOG(LS_ERROR) << "Failed to create Dummy audio device module";
+    if (!audio_device_module_) {
+      audio_device_module_ = webrtc::AudioDeviceModule::Create(
+          kAudioDeviceModuleType,
+          task_queue_factory_ptr);
+      if (audio_device_module_) {
+        RTC_LOG(LS_INFO) << "Audio device module created successfully on thread: "
+                         << rtc::Thread::Current();
+        int init_res = audio_device_module_->Init();
+        if (init_res != 0) {
+          RTC_LOG(LS_ERROR) << "Audio device module Init failed (" << init_res
+                            << "), switching to DummyAudio layer";
+          audio_device_module_ = webrtc::AudioDeviceModule::Create(
+              webrtc::AudioDeviceModule::kDummyAudio,
+              task_queue_factory_ptr);
+          if (audio_device_module_) {
+            audio_device_module_->Init();
+          }
         }
+      } else {
+        RTC_LOG(LS_ERROR) << "Failed to create audio device module";
       }
     } else {
-      RTC_LOG(LS_ERROR) << "Failed to create audio device module";
+      RTC_LOG(LS_INFO) << "Reusing existing audio device module";
     }
     adm_created.Set();
   });
@@ -652,8 +639,12 @@ bool DirectApplication::CreatePeerConnection() {
   }
 
   dependencies_.adm = audio_device_module_;
-  dependencies_.task_queue_factory = std::move(task_queue_factory);
+  if (!dependencies_.task_queue_factory)
+    dependencies_.task_queue_factory = std::move(task_queue_factory);
 
+  if (peer_connection_factory_) {
+    RTC_LOG(LS_INFO) << "Reusing existing PeerConnectionFactory";
+  } else {
   // PeerConnectionFactory creation
   peer_connection_factory_ = webrtc::CreatePeerConnectionFactory(
       dependencies_.network_thread,
@@ -677,9 +668,11 @@ bool DirectApplication::CreatePeerConnection() {
       nullptr  // audio_processing
   );
 
+  } // end if (!peer_connection_factory_)
+
   if (!peer_connection_factory_) {
     RTC_LOG(LS_ERROR) << "Failed to create PeerConnectionFactory";
-    return false; // Handle error appropriately
+    return false;
   }
 
   webrtc::PeerConnectionInterface::RTCConfiguration config;
@@ -1048,7 +1041,8 @@ void DirectApplication::OnAddTrack(rtc::scoped_refptr<webrtc::RtpReceiverInterfa
                 RTC_LOG(LS_INFO) << "Creating EchoVideoTrackSource and outgoing track to echo remote video.";
                 auto echo_source = rtc::make_ref_counted<webrtc::EchoVideoTrackSource>();
                 // Register echo_source as sink to remote video track
-                video_track->AddOrUpdateSink(echo_source.get(), rtc::VideoSinkWants());
+                // echo sink disabled: dangling pointer causes SEGV in IncomingVideoStream
+                // video_track->AddOrUpdateSink(echo_source.get(), rtc::VideoSinkWants());
 
                 // Set as our local video source and add outgoing track
                 SetVideoSource(echo_source);
@@ -1057,7 +1051,8 @@ void DirectApplication::OnAddTrack(rtc::scoped_refptr<webrtc::RtpReceiverInterfa
                 // for echoing the remote video back, without touching the existing
                 // local video_source_ (which may be camera etc.).
                 auto echo_source = rtc::make_ref_counted<webrtc::EchoVideoTrackSource>();
-                video_track->AddOrUpdateSink(echo_source.get(), rtc::VideoSinkWants());
+                // echo sink disabled: dangling pointer causes SEGV in IncomingVideoStream
+                // video_track->AddOrUpdateSink(echo_source.get(), rtc::VideoSinkWants());
                 // Optionally store echo_source if you want to keep it alive explicitly,
                 // but since AddOrUpdateSink doesn't retain it, we need to hold the ref.
                 echo_sources_.push_back(echo_source);  // Add vector<scoped_refptr<EchoVideoTrackSource>> echo_sources_ to class

@@ -104,7 +104,6 @@ WhisperAudioDevice::WhisperAudioDevice(
 }
 
 WhisperAudioDevice::~WhisperAudioDevice() {
-  // Stop any ongoing playout/recording to ensure no more callbacks after destruction.
   if (_playing) {
     StopPlayout();
   }
@@ -112,17 +111,12 @@ WhisperAudioDevice::~WhisperAudioDevice() {
     StopRecording();
   }
 
-  // Guard shared resources against concurrent access.
   {
     absl::MutexLock lock(&_queueMutex);
     _ttsBuffer.clear();
     std::queue<std::string> empty;
     std::swap(_textQueue, empty);
   }
-
-  // Free dynamically allocated buffers.
-  delete[] _recordingBuffer;
-  delete[] _playoutBuffer;
 }
 
 int32_t WhisperAudioDevice::ActiveAudioLayer(
@@ -629,6 +623,7 @@ int32_t WhisperAudioDevice::StopPlayout() {
     std::lock_guard<std::mutex> tlock(_transcriber_mutex);
     if (_whisper_transcriber) {
         _whisper_transcriber->setCallback({nullptr, nullptr});
+        _whisper_transcriber->setLanguageCallback({nullptr, nullptr});
         _whisper_transcriber->stop();
         _whisper_transcriber = nullptr;
     }
@@ -649,9 +644,8 @@ int32_t WhisperAudioDevice::StopPlayout() {
   delete[] _playoutBuffer;
   _playoutBuffer = NULL;
 
-  // Release cached helper devices so that the next AudioDevice instance will
-  // recreate them with fresh callbacks.
-  SpeechAudioDeviceFactory::ResetDevices();
+  // Do NOT call ResetDevices() here — the factory reuses devices across calls
+  // and destroying them kills the whillats_server subprocess connection.
 
   return 0;
 }

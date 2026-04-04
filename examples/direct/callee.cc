@@ -319,6 +319,7 @@ void DirectCallee::OnMessage(rtc::AsyncPacketSocket* socket,
     main_thread()->PostTask([self = this, s = std::move(old_socket)]() mutable {
       self->ShutdownInternal();
       s.reset();
+      self->connection_closed_event_.Set();
     });
   } else if (message.rfind(Msg::kCancel, 0) == 0) {
     RTC_LOG(LS_INFO) << "Received CANCEL from " << remote_addr.ToString()
