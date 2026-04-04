@@ -133,6 +133,9 @@ class WhisperAudioDevice : public SpeechAudioDevice {
 
   void SetTTSBuffer(const uint16_t* buffer, size_t buffer_size);
 
+  // Interrupt LLaMa and TTS when remote user speaks (barge-in)
+  void interruptLlama();
+
  private:
   bool RecThreadProcess();
   bool PlayThreadProcess();
@@ -189,6 +192,16 @@ class WhisperAudioDevice : public SpeechAudioDevice {
 
   std::mutex audio_buffer_mutex;
   std::condition_variable buffer_cv;
+
+  // Barge-in detection: track when TTS is actively playing and detect
+  // remote speech energy to interrupt LLaMa mid-response.
+  std::atomic<bool> _isSpeaking{false};
+  std::atomic<int64_t> _lastInterruptMillis{0};
+  static constexpr int64_t kInterruptCooldownMs = 2000;  // min gap between interrupts
+  static constexpr float kSpeechEnergyThreshold = 0.01f;  // RMS threshold for barge-in
+  static constexpr int kEnergyWindowFrames = 5;           // number of 10ms frames to average
+  float _recentEnergy[kEnergyWindowFrames] = {0};
+  int _energyIdx = 0;
 };
 
 }  // namespace webrtc

@@ -320,8 +320,7 @@ int32_t WhisperAudioDevice::StopRecording() {
 void WhisperAudioDevice::SetTTSBuffer(const uint16_t* buffer, size_t buffer_size) {
     RTC_LOG(LS_INFO) << "[PLAY] SetTTSBuffer called with " << buffer_size << " samples";
 
-    // Define a maximum buffer size to prevent overflow (e.g., 1M samples ~ 1 minute at 16kHz stereo)
-    constexpr size_t kMaxBufferSamples = 1 << 20;  // 1,048,576 samples
+    constexpr size_t kMaxBufferSamples = 1 << 20;
 
     absl::MutexLock lock(&_queueMutex);
 
@@ -330,7 +329,6 @@ void WhisperAudioDevice::SetTTSBuffer(const uint16_t* buffer, size_t buffer_size
 
     if (new_size > kMaxBufferSamples) {
         RTC_LOG(LS_WARNING) << "[PLAY] TTS buffer would exceed max size (" << new_size << " > " << kMaxBufferSamples << "), truncating";
-        // Truncate to fit
         buffer_size = kMaxBufferSamples - current_size;
         if (buffer_size == 0) {
             RTC_LOG(LS_ERROR) << "[PLAY] TTS buffer full, discarding new data";
@@ -339,14 +337,40 @@ void WhisperAudioDevice::SetTTSBuffer(const uint16_t* buffer, size_t buffer_size
         new_size = kMaxBufferSamples;
     }
 
-    // Reserve space first to avoid multiple reallocations
     _ttsBuffer.reserve(new_size);
-
-    // Insert the new samples
     _ttsBuffer.insert(_ttsBuffer.end(), buffer, buffer + buffer_size);
+    _isSpeaking.store(true, std::memory_order_relaxed);
 
     RTC_LOG(LS_INFO) << "[PLAY] TTS buffer updated, new size: " << _ttsBuffer.size();
+}
 
+void WhisperAudioDevice::interruptLlama() {
+  // 1. Stop LLaMa generation
+  if (_llama_device) {
+    _llama_device->stop();
+  }
+
+  // 2. Clear pending LLaMa response
+  _llamaPendingLen.store(0, std::memory_order_release);
+
+  // 3. Clear TTS text queue
+  {
+    absl::MutexLock lock(&_queueMutex);
+    std::queue<std::string> empty;
+    std::swap(_textQueue, empty);
+
+    // 4. Clear TTS audio buffer
+    _ttsBuffer.clear();
+    _ttsIndex = 0;
+    _isSpeaking.store(false, std::memory_order_relaxed);
+  }
+
+  RTC_LOG(LS_INFO) << "Interrupted: LLaMa stopped, TTS queue and buffer cleared";
+
+  // 5. Restart LLaMa so it can accept new requests
+  if (_llama_device) {
+    _llama_device->start();
+  }
 }
 
 bool WhisperAudioDevice::RecThreadProcess() {
@@ -368,6 +392,7 @@ bool WhisperAudioDevice::RecThreadProcess() {
           RTC_LOG(LS_INFO) << "Finished playing TTS buffer, resetting";
           _ttsIndex = 0;
           _ttsBuffer.clear();
+          _isSpeaking.store(false, std::memory_order_relaxed);
           // Close mouth when done speaking
           auto* face = SpeechAudioDeviceFactory::talkingFace();
           if (face) face->feedAudio(nullptr, 0);
@@ -686,6 +711,42 @@ bool WhisperAudioDevice::PlayThreadProcess() {
         _playFile.Close();
     }
     #endif // defined(PLAY_WAV_ON_PLAY)
+
+    // Barge-in detection: compute RMS energy of incoming remote audio
+    {
+      const int16_t* samples = reinterpret_cast<const int16_t*>(_playoutBuffer);
+      size_t n = _playoutFramesLeft;
+      float energy = 0.0f;
+      for (size_t i = 0; i < n; i++) {
+        float s = samples[i] / 32768.0f;
+        energy += s * s;
+      }
+      energy = std::sqrt(energy / n);
+
+      // Rolling average of recent energy
+      _recentEnergy[_energyIdx] = energy;
+      _energyIdx = (_energyIdx + 1) % kEnergyWindowFrames;
+
+      float avgEnergy = 0.0f;
+      for (int i = 0; i < kEnergyWindowFrames; i++) {
+        avgEnergy += _recentEnergy[i];
+      }
+      avgEnergy /= kEnergyWindowFrames;
+
+      // If TTS is playing and remote speech energy exceeds threshold, interrupt
+      if (_isSpeaking.load(std::memory_order_relaxed) &&
+          avgEnergy > kSpeechEnergyThreshold) {
+        int64_t sinceLastInterrupt = currentTime - _lastInterruptMillis.load(std::memory_order_relaxed);
+        if (sinceLastInterrupt > kInterruptCooldownMs) {
+          RTC_LOG(LS_INFO) << "Barge-in detected (energy=" << avgEnergy
+                           << "), interrupting LLaMa/TTS";
+          _lastInterruptMillis.store(currentTime, std::memory_order_relaxed);
+          mutex_.Unlock();
+          interruptLlama();
+          mutex_.Lock();
+        }
+      }
+    }
 
     {
       std::lock_guard<std::mutex> tlock(_transcriber_mutex);

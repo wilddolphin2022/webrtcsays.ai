@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Users/ykiryanov/.local/share/uv/tools/vllm-mlx/lib/python3.13/site-packages/vllm_mlx/utils/**)"
+    ]
+  }
+}
