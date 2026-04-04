@@ -69,15 +69,11 @@ WEBRTC_SPILL_DIRNAMES=(
   third_party tools tools_webrtc video out
 )
 
-remove_untracked_webrtc_spill_at_root() {
-  local d tracked
+remove_webrtc_spill_at_root() {
+  local d
   for d in "${WEBRTC_SPILL_DIRNAMES[@]}"; do
     [ -d "$REPO_ROOT/$d" ] || continue
-    tracked="$(git -C "$REPO_ROOT" ls-files -- "$d/" || true)"
-    if [ -n "$tracked" ]; then
-      continue
-    fi
-    echo "Removing untracked WebRTC tree directory at repo root (gclient spill): $d"
+    echo "Removing WebRTC spill directory at repo root (duplicate of src/): $d"
     rm -rf "$REPO_ROOT/$d"
   done
 }
@@ -211,7 +207,7 @@ if [ "${BUILD_KEEP_SRC_OUT:-}" != "1" ] && [ -d "$REPO_ROOT/src/out" ]; then
 fi
 
 # Drop stray duplicate tree at gclient root whether or not we synced this run.
-remove_untracked_webrtc_spill_at_root
+remove_webrtc_spill_at_root
 
 # Optional: remove root .cipd cache (large; recreated on next sync). Off by default.
 if [ "${BUILD_RM_ROOT_CIPD:-}" = "1" ] && [ -d "$REPO_ROOT/.cipd" ]; then
@@ -661,9 +657,9 @@ fi
 if [ -f "$BINARY_PATH" ] && [ -x "$BINARY_PATH" ]; then
     # Test if binary can run (e.g., by checking version or help output)
     if "$BINARY_PATH" --help >/dev/null 2>&1; then
-        echo "Binary at $BINARY_PATH is runnable. Removing any untracked WebRTC spill at repo root..."
+        echo "Binary at $BINARY_PATH is runnable. Removing any WebRTC spill at repo root..."
         cd "$REPO_ROOT"
-        remove_untracked_webrtc_spill_at_root
+        remove_webrtc_spill_at_root
         cd src
     else
         echo "Binary at $BINARY_PATH exists but is not runnable. Skipping cleanup of other directories."
