@@ -523,6 +523,8 @@ if (rtc_use_speech_audio_devices) {
       "speech/whisper_audio_device.h",
       # Whillats sources compiled in-tree with WebRTC clang/libc++ (same ABI as directcall)
       "//modules/third_party/whillats/src/whillats.cc",
+      "//modules/third_party/whillats/src/whillats_client.cc",
+      "//modules/third_party/whillats/src/whillats_ipc.h",
       "//modules/third_party/whillats/src/talking_face.cc",
       "//modules/third_party/whillats/src/whillats_utils.cc",
       "//modules/third_party/whillats/src/stb_image_impl.c",
