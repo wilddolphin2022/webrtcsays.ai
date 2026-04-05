@@ -198,10 +198,10 @@ class WhisperAudioDevice : public SpeechAudioDevice {
   std::atomic<bool> _isSpeaking{false};
   std::atomic<int64_t> _lastInterruptMillis{0};
   std::atomic<int64_t> _ttsStartedMillis{0};
-  static constexpr int64_t kInterruptCooldownMs = 3000;  // min gap between interrupts
-  static constexpr int64_t kMinTTSPlayMs = 1500;         // let TTS play at least this long before barge-in
-  static constexpr float kSpeechEnergyThreshold = 0.02f;  // RMS threshold for barge-in
-  static constexpr int kEnergyWindowFrames = 8;           // number of 10ms frames to average
+  static constexpr int64_t kInterruptCooldownMs = 5000;   // min gap between interrupts
+  static constexpr int64_t kMinTTSPlayMs = 3000;          // let TTS play at least this long before barge-in
+  static constexpr float kSpeechEnergyThreshold = 0.05f;  // RMS threshold for barge-in (conservative)
+  static constexpr int kEnergyWindowFrames = 10;          // number of 10ms frames to average
   float _recentEnergy[kEnergyWindowFrames] = {0};
   int _energyIdx = 0;
 };
