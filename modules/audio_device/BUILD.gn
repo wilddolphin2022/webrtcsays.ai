@@ -543,6 +543,12 @@ if (rtc_use_speech_audio_devices) {
       "//modules/third_party/whillats/third_party/espeak-ng/src/include",
     ]
 
+    defines = [
+      # stb_image_impl.c provides the full STB implementation; suppress the
+      # duplicate definition in talking_face.cc (guarded by this flag).
+      "STB_IMAGE_IMPLEMENTATION_PROVIDED",
+    ]
+
     cflags += [
       "-Wno-incompatible-pointer-types-discards-qualifiers",
       # stb_image_impl.c includes vendor stb_image.h (intentional switch fall-through)
