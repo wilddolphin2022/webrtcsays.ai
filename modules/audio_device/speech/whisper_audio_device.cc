@@ -339,7 +339,9 @@ void WhisperAudioDevice::SetTTSBuffer(const uint16_t* buffer, size_t buffer_size
 
     _ttsBuffer.reserve(new_size);
     _ttsBuffer.insert(_ttsBuffer.end(), buffer, buffer + buffer_size);
-    _isSpeaking.store(true, std::memory_order_relaxed);
+    if (!_isSpeaking.exchange(true, std::memory_order_relaxed)) {
+      _ttsStartedMillis.store(rtc::TimeMillis(), std::memory_order_relaxed);
+    }
 
     RTC_LOG(LS_INFO) << "[PLAY] TTS buffer updated, new size: " << _ttsBuffer.size();
 }
@@ -737,9 +739,11 @@ bool WhisperAudioDevice::PlayThreadProcess() {
       if (_isSpeaking.load(std::memory_order_relaxed) &&
           avgEnergy > kSpeechEnergyThreshold) {
         int64_t sinceLastInterrupt = currentTime - _lastInterruptMillis.load(std::memory_order_relaxed);
-        if (sinceLastInterrupt > kInterruptCooldownMs) {
+        int64_t ttsPlayDuration = currentTime - _ttsStartedMillis.load(std::memory_order_relaxed);
+        if (sinceLastInterrupt > kInterruptCooldownMs &&
+            ttsPlayDuration > kMinTTSPlayMs) {
           RTC_LOG(LS_INFO) << "Barge-in detected (energy=" << avgEnergy
-                           << "), interrupting LLaMa/TTS";
+                           << ", tts_played=" << ttsPlayDuration << "ms), interrupting LLaMa/TTS";
           _lastInterruptMillis.store(currentTime, std::memory_order_relaxed);
           mutex_.Unlock();
           interruptLlama();
