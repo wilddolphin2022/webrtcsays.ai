@@ -75,8 +75,10 @@ void whisperResponseCallback(bool success, const char* response, void* user_data
 void languageResponseCallback(bool success, const char* language, void* user_data) {
   WhisperAudioDevice* audio_device = static_cast<WhisperAudioDevice*>(user_data);
   if (!audio_device) return;
-  // Handle response here
   RTC_LOG(LS_INFO) << "Language response via callback: " << language;
+  if (success && language) {
+    SpeechAudioDeviceFactory::SetLanguage(std::string(language));
+  }
 }
 
 void llamaResponseCallback(bool success, const char* response, void* user_data) {
