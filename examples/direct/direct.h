@@ -197,6 +197,11 @@ class DIRECT_API DirectApplication : public webrtc::PeerConnectionObserver {
     peer_connection_->peer_connection_state() !=
          webrtc::PeerConnectionInterface::PeerConnectionState::kClosed; }
 
+#if defined(WEBRTC_SPEECH_DEVICES) && defined(LLAMA_NOTIFICATION_ENABLED)
+  static DirectApplication* g_app;
+  static DirectApplication* llama_app() { return g_app; }
+#endif
+
   virtual void OnClose(rtc::AsyncPacketSocket* socket) {}
 
   // Run the application event loop
@@ -374,8 +379,6 @@ class DIRECT_API DirectApplication : public webrtc::PeerConnectionObserver {
 #if defined(WEBRTC_SPEECH_DEVICES) && defined(LLAMA_NOTIFICATION_ENABLED)
   static WhillatsLlama* llama_;
   WhillatsSetResponseCallback llamaCallback_;
-  static DirectApplication* g_app;
-  static DirectApplication* llama_app() { return g_app; }
 #endif //WEBRTC_SPEECH_DEVICES && LLAMA_NOTIFICATION_ENABLED
 
 #if defined(WEBRTC_IOS) && defined(__OBJC__)
