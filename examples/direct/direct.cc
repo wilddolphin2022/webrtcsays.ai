@@ -58,6 +58,7 @@ rtc::IPAddress IPFromString(absl::string_view str) {
 
 #if defined(WEBRTC_SPEECH_DEVICES) && defined(LLAMA_NOTIFICATION_ENABLED)
 WhillatsLlama* DirectApplication::llama_ = nullptr;
+DirectApplication* DirectApplication::g_app = nullptr;
 
 void llamaCallback(bool success, const char* response, void* user_data) {
   if (success && response && *response && user_data) {
@@ -90,6 +91,17 @@ void llamaCallback(bool success, const char* response, void* user_data) {
 }
 #endif //WEBRTC_SPEECH_DEVICES && LLAMA_NOTIFICATION_ENABLED
 
+#if defined(WEBRTC_SPEECH_DEVICES)
+static void whisperTransmitCallback(const std::string& text, const std::string& language) {
+  DirectApplication* app = DirectApplication::llama_app();
+  if (app && app->IsConnected()) {
+    std::string message;
+    message.append("WHISPER:[").append(language).append("]").append(text);
+    app->SendMessage(message);
+  }
+}
+#endif
+
 // DirectApplication Implementation
 DirectApplication::DirectApplication(Options opts)
   : opts_(opts)
@@ -99,6 +111,9 @@ DirectApplication::DirectApplication(Options opts)
 {
   // Threads will be created in Initialize() to support full teardown/re-init
   peer_connection_factory_ = nullptr;
+#if defined(WEBRTC_SPEECH_DEVICES) && defined(LLAMA_NOTIFICATION_ENABLED)
+  g_app = this;
+#endif
 }
 
 void DirectApplication::Cleanup() {
@@ -586,6 +601,7 @@ bool DirectApplication::CreatePeerConnection() {
     webrtc::SpeechAudioDeviceFactory::SetWhisperEnabled(true);
     webrtc::SpeechAudioDeviceFactory::SetWhisperModelFilename(opts_.whisper_model);
     webrtc::SpeechAudioDeviceFactory::SetLanguage(opts_.language);
+    webrtc::SpeechAudioDeviceFactory::SetWhisperTranscriptCallback(whisperTransmitCallback);
 
   }
 
@@ -871,8 +887,16 @@ bool DirectApplication::CreatePeerConnection() {
   peer_connection_ = pcf_result.MoveValue();
   RTC_LOG(LS_INFO) << "PeerConnection created successfully.";
 
-  // Explicitly attempt to add video track after peer connection creation if source is available
-  if (video_source_) {
+  // Explicitly attempt to add video track after peer connection creation if source is available.
+  // Only do this for the caller.  The callee must NOT call AddTrack() here because it
+  // creates a send-only transceiver that conflicts with the recv-only transceivers created
+  // when the remote offer is applied, causing CreateAnswer to reject both m= sections
+  // (media_session.cc:1487: "m= section being rejected in answer").
+  // The callee's video track is attached to the negotiated transceiver in peer.cc
+  // during CreateAnswer (see peer.cc:859-883).
+  if (!is_caller() && video_source_) {
+    RTC_LOG(LS_INFO) << "Callee: skipping AddVideoTrackIfSourceAvailable — video will be attached to negotiated transceiver in CreateAnswer.";
+  } else if (video_source_) {
     if (rtc::Thread::Current() == signaling_thread()) {
       RTC_LOG(LS_INFO) << "Peer connection created, attempting to add video track immediately.";
       AddVideoTrackIfSourceAvailable();

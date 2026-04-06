@@ -57,6 +57,10 @@ class SpeechAudioDeviceFactory {
   static void SpeakText(const std::string& text, const std::string& language);
   static void AskLlama(const std::string& text, const std::string& language);
 
+  // Callback for sending whisper transcripts to connected peer
+  static void SetWhisperTranscriptCallback(void (*cb)(const std::string& text, const std::string& language));
+  static void NotifyWhisperTranscript(const std::string& text, const std::string& language);
+
   static void SetWhisperEnabled(bool enabled) { _whisperEnabled = enabled; }
   static void SetLlamaEnabled(bool enabled) { _llamaEnabled = enabled; }
   static void SetLanguage(const std::string& language) { 

@@ -128,6 +128,18 @@ void SpeechAudioDeviceFactory::AskLlama(const std::string& text, const std::stri
     _llamaDevice->askLlama(text.c_str());
 }
 
+static void (*g_whisperTranscriptCallback)(const std::string&, const std::string&) = nullptr;
+
+void SpeechAudioDeviceFactory::SetWhisperTranscriptCallback(void (*cb)(const std::string&, const std::string&)) {
+  g_whisperTranscriptCallback = cb;
+}
+
+void SpeechAudioDeviceFactory::NotifyWhisperTranscript(const std::string& text, const std::string& language) {
+  if (g_whisperTranscriptCallback) {
+    g_whisperTranscriptCallback(text, language);
+  }
+}
+
 void SpeechAudioDeviceFactory::SetWhisperModelFilename(absl::string_view whisper_model_filename) {
   _whisperModelFilename = whisper_model_filename;
 }

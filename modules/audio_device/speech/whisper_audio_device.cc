@@ -62,9 +62,10 @@ void ttsAudioCallback(bool success, const uint16_t* buffer, size_t buffer_size, 
 void whisperResponseCallback(bool success, const char* response, void* user_data) {
   WhisperAudioDevice* audio_device = static_cast<WhisperAudioDevice*>(user_data);
   if (!audio_device) return;
-  // Handle response here
   RTC_LOG(LS_INFO) << "Whisper response via callback: " << response;
   if(success) {
+    std::string language = SpeechAudioDeviceFactory::GetLanguage();
+    SpeechAudioDeviceFactory::NotifyWhisperTranscript(std::string(response), language);
     if(audio_device->_llama_enabled)
       audio_device->askLlama(std::string(response));
     else  
