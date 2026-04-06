@@ -35,13 +35,11 @@ LLAMA_MODEL="google_gemma-4-E4B-it-Q2_K.gguf"
 LLAMA_MMPROJ="mmproj-BF16.gguf"
 LLAMA_SERVER_PORT=8080
 
-# Piper voice models
-declare -A PIPER_VOICES=(
-    ["en"]="en/en_US/lessac/low/en_US-lessac-low.onnx"
-    ["es"]="es/es_ES/carlfm/x_low/es_ES-carlfm-x_low.onnx"
-    ["ru"]="ru/ru_RU/ruslan/medium/ru_RU-ruslan-medium.onnx"
-    ["zh"]="zh/zh_CN/huayan/medium/zh_CN-huayan-medium.onnx"
-)
+# Piper voice models (paths relative to HF_PIPER_BASE)
+PIPER_EN="en/en_US/lessac/low/en_US-lessac-low.onnx"
+PIPER_ES="es/es_ES/carlfm/x_low/es_ES-carlfm-x_low.onnx"
+PIPER_RU="ru/ru_RU/ruslan/medium/ru_RU-ruslan-medium.onnx"
+PIPER_ZH="zh/zh_CN/huayan/medium/zh_CN-huayan-medium.onnx"
 
 # GN build args
 GN_ARGS='target_os="linux" is_debug=false is_clang=true use_sysroot=false
