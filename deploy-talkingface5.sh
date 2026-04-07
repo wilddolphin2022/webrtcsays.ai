@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # deploy-talkingface5.sh
-# Deploy talkingface5: whillats_server (Whisper+Piper) + llama-server (HTTP LLM)
+# Deploy talkingface5: whillats_server (Whisper + embedded Llama + Piper)
 # to a clean Ubuntu/Debian x86_64 machine.
 #
 # Usage:
@@ -8,10 +8,9 @@
 #   HF_TOKEN=hf_xxx ./deploy-talkingface5.sh root@host ~/.ssh/id_wd2025
 #
 # Architecture:
-#   - llama-server  (llama.cpp) — loads LLM, serves /v1/chat/completions on :8080
-#   - whillats_server           — Whisper STT + Piper TTS + HTTP client to llama-server
+#   - whillats_server — Whisper STT + embedded Llama (llama.cpp) + Piper TTS
 #   - directcall (libdirect.so) — WebRTC signaling, audio pipeline
-#   - demo.html                 — browser UI (deployed via FTP to www.wilddolphin.us)
+#   - demo.html      — browser UI (deployed via FTP to www.wilddolphin.us)
 
 set -euo pipefail
 
@@ -24,16 +23,14 @@ WHILLATS_REPO="https://github.com/wilddolphin2025/whillats.git"
 
 DEPLOY_DIR="/opt/directcall3-dev"
 WHILLATS_DIR="/opt/whillats3"
-LLAMA_DIR="/opt/llama-server"
 MODELS_DIR="/opt/models"
 BUILD_DIR="/opt/webrtcsays-build"
 HF_PIPER_BASE="https://huggingface.co/rhasspy/piper-voices/resolve/main"
 
 # Models
 WHISPER_MODEL="ggml-small.bin"
-LLAMA_MODEL="google_gemma-4-E4B-it-Q2_K.gguf"
+LLAMA_MODEL="google_gemma-4-E4B-it-Q4_K_M.gguf"
 LLAMA_MMPROJ="mmproj-BF16.gguf"
-LLAMA_SERVER_PORT=8080
 
 # Piper voice models (paths relative to HF_PIPER_BASE)
 PIPER_EN="en/en_US/lessac/low/en_US-lessac-low.onnx"
@@ -66,7 +63,7 @@ echo "=== talkingface5 deploy to $SSH_TARGET ==="
 # ---------------------------------------------------------------------------
 # Phase 1: system dependencies
 # ---------------------------------------------------------------------------
-echo "[1/9] Installing system dependencies..."
+echo "[1/8] Installing system dependencies..."
 $SSH << 'EOF'
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
@@ -84,43 +81,9 @@ pip3 install -q huggingface_hub 2>/dev/null || true
 EOF
 
 # ---------------------------------------------------------------------------
-# Phase 2: build llama-server (llama.cpp)
+# Phase 2: build whillats_server (talkingface5) — Whisper + embedded Llama + Piper
 # ---------------------------------------------------------------------------
-echo "[2/9] Building llama-server (llama.cpp)..."
-$SSH << EOF
-set -euo pipefail
-LLAMA_DIR="$LLAMA_DIR"
-LLAMA_MODEL_PATH="$MODELS_DIR/$LLAMA_MODEL"
-LLAMA_MMPROJ_PATH="$MODELS_DIR/$LLAMA_MMPROJ"
-
-if [ -d "\$LLAMA_DIR/.git" ]; then
-    cd "\$LLAMA_DIR"
-    git pull --ff-only
-else
-    git clone --depth=1 https://github.com/ggerganov/llama.cpp.git "\$LLAMA_DIR"
-    cd "\$LLAMA_DIR"
-fi
-
-# Build llama-server only (no examples, no tests)
-cmake -S . -B build \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DGGML_METAL=OFF \
-    -DGGML_CUDA=OFF \
-    -DLLAMA_BUILD_SERVER=ON \
-    -DLLAMA_BUILD_TESTS=OFF \
-    -DLLAMA_BUILD_EXAMPLES=OFF
-cmake --build build --config Release --target llama-server -j\$(nproc)
-
-# Stage binary
-mkdir -p "$DEPLOY_DIR/bin"
-cp "\$LLAMA_DIR/build/bin/llama-server" "$DEPLOY_DIR/bin/llama-server"
-echo "llama-server built: \$(ls -lh $DEPLOY_DIR/bin/llama-server)"
-EOF
-
-# ---------------------------------------------------------------------------
-# Phase 3: build whillats_server (talkingface5) — Whisper+Piper only
-# ---------------------------------------------------------------------------
-echo "[3/9] Building whillats_server (branch: $BRANCH)..."
+echo "[2/8] Building whillats_server (branch: $BRANCH)..."
 $SSH << EOF
 set -euo pipefail
 BRANCH="$BRANCH"
@@ -276,7 +239,7 @@ EOF
 # ---------------------------------------------------------------------------
 # Phase 7: runtime scripts + config
 # ---------------------------------------------------------------------------
-echo "[7/9] Writing runtime files..."
+echo "[7/8] Writing runtime files..."
 
 $SSH << 'EOF'
 cat > /opt/directcall3-dev/run-directcall.sh << 'SCRIPT'
@@ -305,8 +268,8 @@ cat > "$DEPLOY_DIR/config.talkingface5.json" << 'CONFIG'
   "bonjour": false,
   "language": "auto",
   "whisper_model": "$MODELS_DIR/ggml-small.bin",
-  "llama_model":   "http://127.0.0.1:$LLAMA_SERVER_PORT",
-  "llama_mmproj":  "",
+  "llama_model":   "$MODELS_DIR/$LLAMA_MODEL",
+  "llama_mmproj":  "$MODELS_DIR/$LLAMA_MMPROJ",
   "webrtc_cert_path": "$DEPLOY_DIR/cert.pem",
   "webrtc_key_path":  "$DEPLOY_DIR/key.pem",
   "webrtc_speech_initial_playout_wav": "",
@@ -323,44 +286,17 @@ CONFIG
 EOF
 
 # ---------------------------------------------------------------------------
-# Phase 8: systemd services (llama-server + directcall)
+# Phase 8: systemd service (directcall)
 # ---------------------------------------------------------------------------
-echo "[8/9] Writing systemd services..."
+echo "[8/8] Writing systemd service..."
 
 $SSH << EOF
-# llama-server service
-cat > /etc/systemd/system/llama-server-talkingface5.service << 'UNIT'
-[Unit]
-Description=llama-server talkingface5 (Gemma-4 LLM HTTP API)
-After=network.target
-
-[Service]
-Type=simple
-ExecStart=$DEPLOY_DIR/bin/llama-server \
-    --model $MODELS_DIR/$LLAMA_MODEL \
-    --mmproj $MODELS_DIR/$LLAMA_MMPROJ \
-    --port $LLAMA_SERVER_PORT \
-    --host 127.0.0.1 \
-    --ctx-size 4096 \
-    --n-predict 512 \
-    --threads 6 \
-    --parallel 1 \
-    --no-mmap
-Restart=on-failure
-RestartSec=5
-WorkingDirectory=$DEPLOY_DIR
-
-[Install]
-WantedBy=multi-user.target
-UNIT
-
 # directcall service
 cat > /etc/systemd/system/directcall3-talkingface5.service << 'UNIT'
 [Unit]
-Description=DirectCall3 talkingface5 (WebRTC + Whisper + Piper)
-After=network-online.target llama-server-talkingface5.service
+Description=DirectCall3 talkingface5 (WebRTC + Whisper + embedded Llama + Piper)
+After=network-online.target
 Wants=network-online.target
-Requires=llama-server-talkingface5.service
 
 [Service]
 Type=simple
@@ -382,20 +318,17 @@ WantedBy=multi-user.target
 UNIT
 
 systemctl daemon-reload
-systemctl enable llama-server-talkingface5
 systemctl enable directcall3-talkingface5
-systemctl restart llama-server-talkingface5
-sleep 5
 systemctl restart directcall3-talkingface5
 sleep 3
-systemctl is-active llama-server-talkingface5
 systemctl is-active directcall3-talkingface5
 EOF
 
 # ---------------------------------------------------------------------------
-# Phase 9: deploy demo.html via FTP
 # ---------------------------------------------------------------------------
-echo "[9/9] Deploying demo.html to www.wilddolphin.us..."
+# Phase 8 cont: deploy demo.html via FTP
+# ---------------------------------------------------------------------------
+echo "  Deploying demo.html to www.wilddolphin.us..."
 DEMO_SRC="$(dirname "$0")/src/modules/third_party/whillats/demo.html"
 if [ -f "$DEMO_SRC" ]; then
     curl -s --ftp-create-dirs -T "$DEMO_SRC" \
@@ -408,10 +341,8 @@ fi
 echo ""
 echo "=== talkingface5 deploy complete ==="
 echo ""
-echo "Services:"
-echo "  llama-server:  journalctl -u llama-server-talkingface5 -f"
-echo "  directcall:    journalctl -u directcall3-talkingface5 -f"
+echo "Service logs:"
+echo "  directcall: journalctl -u directcall3-talkingface5 -f"
 echo ""
-echo "llama-server API: http://<host>:$LLAMA_SERVER_PORT/health"
 echo "WebRTC signaling: ws://<host>:3459"
 echo "demo.html:        https://www.wilddolphin.us/demo.html"
